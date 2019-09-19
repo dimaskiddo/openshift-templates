@@ -1,0 +1,101 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  annotations:
+    description: >-
+      Template for creating the deployer account and roles needed for the
+      aggregated logging deployer. Create as cluster-admin.
+    tags: infrastructure
+  name: logging-deployer-account-template
+  namespace: openshift
+objects:
+  - apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      labels:
+        component: deployer
+        logging-infra: deployer
+        provider: openshift
+      name: logging-deployer
+    name: logging-deployer
+  - apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: aggregated-logging-kibana
+  - apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: aggregated-logging-elasticsearch
+  - apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: aggregated-logging-fluentd
+  - apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: aggregated-logging-curator
+  - apiVersion: v1
+    kind: ClusterRole
+    metadata:
+      name: oauth-editor
+    rules:
+      - resources:
+          - oauthclients
+        verbs:
+          - create
+          - delete
+  - apiVersion: v1
+    kind: ClusterRole
+    metadata:
+      name: daemonset-admin
+    rules:
+      - apiGroups:
+          - extensions
+        resources:
+          - daemonsets
+        verbs:
+          - create
+          - get
+          - list
+          - watch
+          - delete
+          - update
+  - apiVersion: v1
+    kind: ClusterRole
+    metadata:
+      name: rolebinding-reader
+    rules:
+      - resources:
+          - clusterrolebindings
+        verbs:
+          - get
+  - apiVersion: v1
+    kind: RoleBinding
+    metadata:
+      name: logging-deployer-edit-role
+    roleRef:
+      kind: ClusterRole
+      name: edit
+    subjects:
+      - kind: ServiceAccount
+        name: logging-deployer
+  - apiVersion: v1
+    kind: RoleBinding
+    metadata:
+      name: logging-deployer-dsadmin-role
+    roleRef:
+      kind: ClusterRole
+      name: daemonset-admin
+    subjects:
+      - kind: ServiceAccount
+        name: logging-deployer
+  - apiVersion: v1
+    kind: RoleBinding
+    metadata:
+      name: logging-elasticsearch-view-role
+    roleRef:
+      kind: ClusterRole
+      name: view
+    subjects:
+      - kind: ServiceAccount
+        name: aggregated-logging-elasticsearch

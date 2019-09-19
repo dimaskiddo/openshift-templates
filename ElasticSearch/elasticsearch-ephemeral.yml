@@ -1,0 +1,109 @@
+kind: Template
+apiVersion: v1
+metadata:
+  name: elasticsearch-ephemeral
+  annotations:
+    openshift.io/display-name: 'ElasticSearch (Ephemeral)'
+    description: "ElasticSearch. This template will create service without persistent storage."
+    tags: "searchengine,database,elasticsearch"
+    iconClass: "icon-elastic"
+
+parameters:
+  - name: ELASTICSEARCH_NAME
+    displayName: "ElasticSearch Name"
+    description: "A reference to ElasticSearch name."
+    from: "[a-zA-Z0-9]{10}"
+    value: "elasticsearch"
+    required: true
+
+  - name: ELASTICSEARCH_DOMAIN_URL
+    displayName: "ElasticSearch Domain URL"
+    description: "A reference to ElasticSearch domain URL."
+    from: "[a-zA-Z0-9]{100}"
+
+  - name: ELASTICSEARCH_JAVA_MEMORY
+    displayName: "ElasticSearch Java Memory"
+    description: "Java memory available for elasticsearch, e.g. 512M, 2G."
+    value: "2G"
+    required: true
+
+objects:
+  - kind: Service
+    apiVersion: v1
+    metadata:
+      name: "${ELASTICSEARCH_NAME}"
+    spec:
+      ports:
+        - name: "elasticsearch-http"
+          port: "9200"
+        - name: "elasticsearch-transport"
+          port: "9300"
+      selector:
+        name: "${ELASTICSEARCH_NAME}"
+
+  - kind: Route
+    apiVersion: v1
+    metadata:
+      name: "${ELASTICSEARCH_NAME}"
+    spec:
+      host: ${ELASTICSEARCH_DOMAIN_URL}
+      to:
+        kind: Service
+        name: ${ELASTICSEARCH_NAME}
+      port:
+        targetPort: elasticsearch-http
+
+  - kind: DeploymentConfig
+    apiVersion: v1
+    metadata:
+      name: "${ELASTICSEARCH_NAME}"
+      label:
+        name: "${ELASTICSEARCH_NAME}"
+    spec:
+      replicas: 1
+      selector:
+        name: "${ELASTICSEARCH_NAME}"
+      strategy:
+        type: Recreate
+      template:
+        metadata:
+          labels:
+            name: "${ELASTICSEARCH_NAME}"
+        spec:
+          containers:
+            - env:
+                - name: 'ES_JAVA_OPTS'
+                  value: '-Xms${ELASTICSEARCH_JAVA_MEMORY} -Xmx${ELASTICSEARCH_JAVA_MEMORY}'
+              name: "${ELASTICSEARCH_NAME}"
+              image: 'telkomindonesia/alpine:elasticsearch-6.5'
+              imagePullPolicy: Always
+              ports:
+                - containerPort: 9200
+                  protocol: TCP
+                - containerPort: 9300
+                  protocol: TCP
+              livenessProbe:
+                failureThreshold: 3
+                initialDelaySeconds: 30
+                periodSeconds: 10
+                successThreshold: 1
+                tcpSocket:
+                  port: 9200
+                timeoutSeconds: 1
+              readinessProbe:
+                failureThreshold: 3
+                initialDelaySeconds: 30
+                periodSeconds: 10
+                successThreshold: 1
+                tcpSocket:
+                  port: 9200
+                timeoutSeconds: 1
+              volumeMounts:
+                - name: elasticsearch-data
+                  mountPath: "/opt/elasticsearch/data"
+          volumes:
+            - name: elasticsearch-data
+              emptyDir: {}
+      test: false
+      triggers:
+        - type: ConfigChange

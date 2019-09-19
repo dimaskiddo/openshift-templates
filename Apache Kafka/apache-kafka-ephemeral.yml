@@ -1,0 +1,83 @@
+kind: Template
+apiVersion: v1
+metadata:
+  name: apache-kafka-ephemeral
+  annotations:
+    openshift.io/display-name: 'Apache Kafka (Ephemeral)'
+    description: "Apache Kafka. This template will create service without persistent storage."
+    tags: "messaging,queue,apache,kafka"
+    iconClass: "icon-scala"
+
+parameters:
+  - name: KAFKA_NAME
+    displayName: "Kafka Name"
+    description: "A reference to Kafka name."
+    from: "[a-zA-Z0-9]{10}"
+    value: "kafka"
+    required: true
+
+objects:
+  - kind: Service
+    apiVersion: v1
+    metadata:
+      name: "${KAFKA_NAME}"
+    spec:
+      ports:
+        - name: "zookeeper"
+          port: "2181"
+        - name: "kafka"
+          port: "9092"
+      selector:
+        name: "${KAFKA_NAME}"
+
+  - kind: DeploymentConfig
+    apiVersion: v1
+    metadata:
+      name: "${KAFKA_NAME}"
+      label:
+        name: "${KAFKA_NAME}"
+    spec:
+      replicas: 1
+      selector:
+        name: "${KAFKA_NAME}"
+      strategy:
+        type: Recreate
+      template:
+        metadata:
+          labels:
+            name: "${KAFKA_NAME}"
+        spec:
+          containers:
+            - name: "${KAFKA_NAME}"
+              image: 'telkomindonesia/alpine:kafka-2.1'
+              imagePullPolicy: Always
+              ports:
+                - containerPort: 2181
+                  protocol: TCP
+                - containerPort: 9092
+                  protocol: TCP
+              livenessProbe:
+                failureThreshold: 3
+                initialDelaySeconds: 30
+                periodSeconds: 10
+                successThreshold: 1
+                tcpSocket:
+                  port: 2181
+                timeoutSeconds: 1
+              readinessProbe:
+                failureThreshold: 3
+                initialDelaySeconds: 30
+                periodSeconds: 10
+                successThreshold: 1
+                tcpSocket:
+                  port: 9092
+                timeoutSeconds: 1
+              volumeMounts:
+                - name: kafka-data
+                  mountPath: "/data"
+          volumes:
+            - name: kafka-data
+              emptyDir: {}
+      test: false
+      triggers:
+        - type: ConfigChange

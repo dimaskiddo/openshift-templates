@@ -1,0 +1,87 @@
+kind: Template
+apiVersion: v1
+metadata:
+  name: stateful-set
+  annotations:
+    openshift.io/display-name: 'Stateful Set Application'
+    description: "Stateful Set Application."
+    tags: "statefulset"
+    iconClass: "icon-other"
+
+parameters:
+  - name: APP_NAME
+    displayName: "Application Name"
+    description: "A reference to application name."
+    from: "[a-zA-Z0-9]{10}"
+    required: true
+
+  - name: APP_PORT
+    displayName: "Application Port"
+    description: "A reference to application port."
+    from: "[0-9]{5}"
+    required: true
+
+  - name: APP_IMAGE
+    displayName: "Application Container Image"
+    description: "A reference to application container image."
+    required: true
+
+  - name: APP_REPLICAS
+    displayName: "Application Replication Number"
+    description: "A reference to replication number."
+    from: "[0-9]{2}"
+    required: true
+
+  - name: APP_MEMORY_LIMIT
+    displayName: "Application Memory Limit"
+    description: "Maximum amount of memory the container can use."
+    value: "512Mi"
+    required: true
+
+objects:
+  - kind: Service
+    apiVersion: v1
+    metadata:
+      name: "${APP_NAME}-hs"
+    spec:
+      clusterIP: None
+      ports:
+        - name: "${APP_NAME}"
+          port: "${APP_PORT}"
+      selector:
+        name: "${APP_NAME}"
+
+  - kind: Service
+    apiVersion: v1
+    metadata:
+      name: "${APP_NAME}-cs"
+    spec:
+      ports:
+        - name: "${APP_NAME}"
+          port: "${APP_PORT}"
+      selector:
+        name: "${APP_NAME}"
+
+  - kind: StatefulSet
+    apiVersion: apps/v1beta1
+    metadata:
+      name: "${APP_NAME}"
+    spec:
+      serviceName: "${APP_NAME}-hs"
+      replicas: "${APP_REPLICAS}"
+      updateStrategy:
+        type: RollingUpdate
+      template:
+        metadata:
+          labels:
+            name: "${APP_NAME}"
+        spec:
+          containers:
+            - name: "${APP_NAME}"
+              image: "${APP_IMAGE}"
+              imagePullPolicy: Always
+              ports:
+                - containerPort: "${APP_PORT}"
+              resources:
+                limits:
+                  memory: "${APP_MEMORY_LIMIT}"

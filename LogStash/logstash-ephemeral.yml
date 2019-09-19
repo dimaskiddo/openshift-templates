@@ -1,0 +1,111 @@
+kind: Template
+apiVersion: v1
+metadata:
+  name: logstash-ephemeral
+  annotations:
+    openshift.io/display-name: 'LogStash (Ephemeral)'
+    description: "LogStash. This template will create service without persistent storage."
+    tags: "logging,transformator,logstash"
+    iconClass: "icon-processserver"
+
+parameters:
+  - name: LOGSTASH_NAME
+    displayName: "LogStash Name"
+    description: "A reference to LogStash name."
+    from: "[a-zA-Z0-9]{10}"
+    value: "logstash"
+    required: true
+
+  - name: LOGSTASH_MEMORY_LIMIT
+    displayName: "LogStash Memory Limit"
+    description: "Maximum amount of memory the LogStash can use."
+    value: "1G"
+    required: true
+
+  - name: LOGSTASH_INGRESS_PORT
+    displayName: "LogStash Ingress Port"
+    description: "A reference to LogStash ingress port."
+    value: "5000"
+    required: true
+
+  - name: LOGSTASH_ELASTICSEARCH_URL
+    displayName: "LogStash ElasticSearch URL"
+    description: "A reference to LogStash ElasticSearch URL."
+    value: "http://elasticsearch:9200"
+    required: true
+
+objects:
+  - kind: Service
+    apiVersion: v1
+    metadata:
+      name: "${LOGSTASH_NAME}"
+    spec:
+      ports:
+        - name: "logstash-http"
+          port: "9600"
+        - name: "logstash-transport"
+          port: ${LOGSTASH_INGRESS_PORT}
+      selector:
+        name: "${LOGSTASH_NAME}"
+
+  - kind: DeploymentConfig
+    apiVersion: v1
+    metadata:
+      name: "${LOGSTASH_NAME}"
+      label:
+        name: "${LOGSTASH_NAME}"
+    spec:
+      replicas: 1
+      selector:
+        name: "${LOGSTASH_NAME}"
+      strategy:
+        type: Recreate
+      template:
+        metadata:
+          labels:
+            name: "${LOGSTASH_NAME}"
+        spec:
+          containers:
+            - env:
+                - name: 'LS_JAVA_OPTS'
+                  value: '-Xms${LOGSTASH_MEMORY_LIMIT} -Xmx${LOGSTASH_MEMORY_LIMIT}'
+                - name: 'LS_INGRESS_PORT'
+                  value: '${LOGSTASH_INGRESS_PORT}'
+                - name: 'ES_URL'
+                  value: '${LOGSTASH_ELASTICSEARCH_URL}'
+              name: "${LOGSTASH_NAME}"
+              image: 'telkomindonesia/alpine:logstash-6.5'
+              imagePullPolicy: Always
+              ports:
+                - containerPort: 9600
+                  protocol: TCP
+                - containerPort: ${LOGSTASH_INGRESS_PORT}
+                  protocol: TCP
+              resources:
+                limits:
+                  memory: ${LOGSTASH_MEMORY_LIMIT}
+              livenessProbe:
+                failureThreshold: 3
+                initialDelaySeconds: 90
+                periodSeconds: 10
+                successThreshold: 1
+                tcpSocket:
+                  port: 9600
+                timeoutSeconds: 1
+              readinessProbe:
+                failureThreshold: 3
+                initialDelaySeconds: 90
+                periodSeconds: 10
+                successThreshold: 1
+                tcpSocket:
+                  port: 9600
+                timeoutSeconds: 1
+              volumeMounts:
+                - name: logstash-data
+                  mountPath: "/opt/logstash/data"
+          volumes:
+            - name: logstash-data
+              emptyDir: {}
+      test: false
+      triggers:
+        - type: ConfigChange

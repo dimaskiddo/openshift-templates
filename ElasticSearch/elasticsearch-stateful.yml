@@ -1,0 +1,269 @@
+kind: Template
+apiVersion: v1
+metadata:
+  name: elasticsearch-stateful
+  annotations:
+    openshift.io/display-name: 'ElasticSearch Cluster (Persistent)'
+    description: "ElasticSearch Cluster. You must have persistent volumes available in your cluster to use this template."
+    tags: "searchengine,database,elasticsearch"
+    iconClass: "icon-elastic"
+
+parameters:
+  - name: ELASTICSEARCH_NAME
+    displayName: "ElasticSearch Name"
+    description: "A reference to ElasticSearch name."
+    from: "[a-zA-Z0-9]{10}"
+    value: "elasticsearch-cluster"
+    required: true
+
+  - name: ELASTICSEARCH_DOMAIN_URL
+    displayName: "ElasticSearch Domain URL"
+    description: "A reference to ElasticSearch domain URL."
+    from: "[a-zA-Z0-9]{100}"
+
+  - name: ELASTICSEARCH_JAVA_MEMORY
+    displayName: "ElasticSearch Java Memory"
+    description: "Java memory available for elasticsearch, e.g. 512M, 2G."
+    value: "2G"
+    required: true
+
+  - name: ELASTICSEARCH_MASTER_REPLICAS
+    displayName: "ElasticSearch Master Replication Number"
+    description: "A reference to elasticsearch master replication number."
+    from: "[0-9]{2}"
+    value: "3"
+    required: true
+
+  - name: ELASTICSEARCH_INGEST_REPLICAS
+    displayName: "ElasticSearch Ingets Replication Number"
+    description: "A reference to elasticsearch ingest replication number."
+    from: "[0-9]{2}"
+    value: "3"
+    required: true
+
+  - name: ELASTICSEARCH_DATA_REPLICAS
+    displayName: "ElasticSearch Data Replication Number"
+    description: "A reference to elasticsearch data replication number."
+    from: "[0-9]{2}"
+    value: "3"
+    required: true
+
+  - name: ELASTICSEARCH_DATA_VOLUME_CAPACITY
+    displayName: "ElasticSearch Data Volume Capacity"
+    description: "Volume space available for elasticsearch data, e.g. 512Mi, 2Gi."
+    value: "1Gi"
+    required: true
+
+objects:
+  - kind: Service
+    apiVersion: v1
+    metadata:
+      name: "${ELASTICSEARCH_NAME}-data-hs"
+    spec:
+      clusterIP: None
+      ports:
+        - name: "elasticsearch-http"
+          port: "9200"
+        - name: "elasticsearch-transport"
+          port: "9300"
+      selector:
+        name: "${ELASTICSEARCH_NAME}-data"
+
+  - kind: Service
+    apiVersion: v1
+    metadata:
+      name: "${ELASTICSEARCH_NAME}-ingest"
+    spec:
+      ports:
+        - name: "elasticsearch-http"
+          port: "9200"
+        - name: "elasticsearch-transport"
+          port: "9300"
+      selector:
+        name: "${ELASTICSEARCH_NAME}-ingest"
+
+  - kind: Service
+    apiVersion: v1
+    metadata:
+      name: "${ELASTICSEARCH_NAME}-master"
+    spec:
+      ports:
+        - name: "elasticsearch-http"
+          port: "9200"
+        - name: "elasticsearch-transport"
+          port: "9300"
+      selector:
+        name: "${ELASTICSEARCH_NAME}-master"
+
+  - kind: Route
+    apiVersion: v1
+    metadata:
+      name: "${ELASTICSEARCH_NAME}-ingest"
+    spec:
+      host: ${ELASTICSEARCH_DOMAIN_URL}
+      to:
+        kind: Service
+        name: ${ELASTICSEARCH_NAME}-ingest
+      port:
+        targetPort: elasticsearch-http
+
+  - kind: StatefulSet
+    apiVersion: apps/v1
+    metadata:
+      name: "${ELASTICSEARCH_NAME}-data"
+      label:
+        name: "${ELASTICSEARCH_NAME}-data"
+    spec:
+      serviceName: "${ELASTICSEARCH_NAME}-data-hs"
+      replicas: "${ELASTICSEARCH_DATA_REPLICAS}"
+      updateStrategy:
+        type: RollingUpdate
+      podManagementPolicy: Parallel
+      template:
+        metadata:
+          labels:
+            name: "${ELASTICSEARCH_NAME}-data"
+        spec:
+          containers:
+            - env:
+                - name: 'ES_JAVA_OPTS'
+                  value: '-Xms${ELASTICSEARCH_JAVA_MEMORY} -Xmx${ELASTICSEARCH_JAVA_MEMORY}'
+                - name: 'ES_ARGS_OPTS'
+                  value: '-Ecluster.name=${ELASTICSEARCH_NAME} -Ediscovery.type=zen -Ediscovery.zen.minimum_master_nodes=2 -Ediscovery.zen.ping.unicast.hosts=${ELASTICSEARCH_NAME}-master -Enode.master=false -Enode.ingest=false -Enode.data=true'
+              name: "${ELASTICSEARCH_NAME}-data"
+              image: "telkomindonesia/alpine:elasticsearch-6.5"
+              imagePullPolicy: Always
+              ports:
+                - containerPort: 9200
+                  protocol: TCP
+                - containerPort: 9300
+                  protocol: TCP
+              livenessProbe:
+                failureThreshold: 3
+                initialDelaySeconds: 60
+                periodSeconds: 10
+                successThreshold: 1
+                tcpSocket:
+                  port: 9200
+                timeoutSeconds: 1
+              readinessProbe:
+                failureThreshold: 3
+                initialDelaySeconds: 60
+                periodSeconds: 10
+                successThreshold: 1
+                tcpSocket:
+                  port: 9200
+                timeoutSeconds: 1
+              volumeMounts:
+                - name: data
+                  mountPath: "/opt/elasticsearch/data"
+      volumeClaimTemplates:
+        - metadata:
+            name: data
+          spec:
+            accessModes: [ ReadWriteOnce ]
+            resources:
+              requests:
+                storage: "${ELASTICSEARCH_DATA_VOLUME_CAPACITY}"
+
+  - kind: DeploymentConfig
+    apiVersion: v1
+    metadata:
+      name: "${ELASTICSEARCH_NAME}-ingest"
+      label:
+        name: "${ELASTICSEARCH_NAME}-ingest"
+    spec:
+      replicas: "${ELASTICSEARCH_INGEST_REPLICAS}"
+      selector:
+        name: "${ELASTICSEARCH_NAME}-ingest"
+      strategy:
+        type: Rolling
+      template:
+        metadata:
+          labels:
+            name: "${ELASTICSEARCH_NAME}-ingest"
+        spec:
+          containers:
+            - env:
+                - name: 'ES_JAVA_OPTS'
+                  value: '-Xms${ELASTICSEARCH_JAVA_MEMORY} -Xmx${ELASTICSEARCH_JAVA_MEMORY}'
+                - name: 'ES_ARGS_OPTS'
+                  value: '-Ecluster.name=${ELASTICSEARCH_NAME} -Ediscovery.type=zen -Ediscovery.zen.minimum_master_nodes=2 -Ediscovery.zen.ping.unicast.hosts=${ELASTICSEARCH_NAME}-master -Enode.master=false -Enode.ingest=true -Enode.data=false'
+              name: "${ELASTICSEARCH_NAME}-ingest"
+              image: 'telkomindonesia/alpine:elasticsearch-6.5'
+              imagePullPolicy: Always
+              ports:
+                - containerPort: 9200
+                  protocol: TCP
+                - containerPort: 9300
+                  protocol: TCP
+              livenessProbe:
+                failureThreshold: 3
+                initialDelaySeconds: 30
+                periodSeconds: 10
+                successThreshold: 1
+                tcpSocket:
+                  port: 9200
+                timeoutSeconds: 1
+              readinessProbe:
+                failureThreshold: 3
+                initialDelaySeconds: 30
+                periodSeconds: 10
+                successThreshold: 1
+                tcpSocket:
+                  port: 9200
+                timeoutSeconds: 1
+      test: false
+      triggers:
+        - type: ConfigChange
+
+  - kind: DeploymentConfig
+    apiVersion: v1
+    metadata:
+      name: "${ELASTICSEARCH_NAME}-master"
+      label:
+        name: "${ELASTICSEARCH_NAME}-master"
+    spec:
+      replicas: "${ELASTICSEARCH_MASTER_REPLICAS}"
+      selector:
+        name: "${ELASTICSEARCH_NAME}-master"
+      strategy:
+        type: Rolling
+      template:
+        metadata:
+          labels:
+            name: "${ELASTICSEARCH_NAME}-master"
+        spec:
+          containers:
+            - env:
+                - name: 'ES_JAVA_OPTS'
+                  value: '-Xms${ELASTICSEARCH_JAVA_MEMORY} -Xmx${ELASTICSEARCH_JAVA_MEMORY}'
+                - name: 'ES_ARGS_OPTS'
+                  value: '-Ecluster.name=${ELASTICSEARCH_NAME} -Ediscovery.type=zen -Ediscovery.zen.minimum_master_nodes=2 -Ediscovery.zen.ping.unicast.hosts=${ELASTICSEARCH_NAME}-master -Enode.master=true -Enode.ingest=false -Enode.data=false'
+              name: "${ELASTICSEARCH_NAME}-master"
+              image: 'telkomindonesia/alpine:elasticsearch-6.5'
+              imagePullPolicy: Always
+              ports:
+                - containerPort: 9200
+                  protocol: TCP
+                - containerPort: 9300
+                  protocol: TCP
+              livenessProbe:
+                failureThreshold: 3
+                initialDelaySeconds: 30
+                periodSeconds: 10
+                successThreshold: 1
+                tcpSocket:
+                  port: 9200
+                timeoutSeconds: 1
+              readinessProbe:
+                failureThreshold: 3
+                initialDelaySeconds: 30
+                periodSeconds: 10
+                successThreshold: 1
+                tcpSocket:
+                  port: 9200
+                timeoutSeconds: 1
+      test: false
+      triggers:
+        - type: ConfigChange

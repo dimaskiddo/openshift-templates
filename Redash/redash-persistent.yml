@@ -1,0 +1,903 @@
+kind: Template
+apiVersion: v1
+metadata:
+  name: redash-persistent
+  annotations:
+    openshift.io/display-name: 'Redash Dashboard'
+    description: "Redash Dashboard. You must have persistent volumes available in your cluster to use this template."
+    tags: "dashboard,redash"
+    iconClass: "icon-datavirt"
+
+parameters:
+  - name: REDASH_NAME
+    displayName: "Redash Name"
+    description: "A reference to Redash name."
+    from: "[a-zA-Z0-9]{10}"
+    value: "redash"
+    required: true
+
+  - name: REDASH_MEMORY_LIMIT
+    displayName: "Redash Memory Limit"
+    description: "Maximum amount of memory the Redash can use."
+    value: "512Mi"
+    required: true
+
+  - name: REDASH_DOMAIN_URL
+    displayName: "Redash Domain URL"
+    description: "A reference to Redash domain URL."
+    from: "[a-zA-Z0-9]{100}"
+    required: true
+
+  - name: REDASH_COOKIE_SECRET
+    displayName: "Redash Cookie Secret"
+    description: "A reference to Redash cookie secret."
+    from: "[a-zA-Z0-9]{32}"
+    generate: expression
+    required: true
+
+  - name: REDASH_MAIL_SERVER
+    displayName: "Redash Mail Server"
+    description: "A reference to Redash Mail Server."
+    value: ""
+
+  - name: REDASH_MAIL_PORT
+    displayName: "Redash Mail Port"
+    description: "A reference to Redash Mail Port."
+    from: "[0-9]{5}"
+    value: ""
+
+  - name: REDASH_MAIL_USE_SSL
+    displayName: "Redash Mail Use SSL"
+    description: "A reference to Redash Mail use SSL. Use value True or False."
+    value: "True"
+
+  - name: REDASH_MAIL_USE_TLS
+    displayName: "Redash Mail Use TLS"
+    description: "A reference to Redash Mail use TLS. Use value True or False."
+    value: "False"
+
+  - name: REDASH_MAIL_USERNAME
+    displayName: "Redash Mail Server Username"
+    description: "Username that will be used by Redash for accessing the mail server."
+    value: ""
+
+  - name: REDASH_MAIL_PASSWORD
+    displayName: "Redash Mail Server Password"
+    description: "Password that will be used by Redash for accessing the mail server."
+    value: ""
+
+  - name: REDASH_MAIL_DEFAULT_SENDER
+    displayName: "Redash Mail Server Default Sender"
+    description: "Default sender that will be used by Redash to send the mail."
+    value: ""
+
+  - name: REDASH_POSTGRESQL_USER
+    displayName: "Redash PostgreSQL Username"
+    description: "Username for PostgreSQL user that will be used by Redash for accessing the database."
+    from: "user[A-Z0-9]{3}"
+    generate: expression
+    required: true
+
+  - name: REDASH_POSTGRESQL_PASSWORD
+    displayName: "Redash PostgreSQL Password"
+    description: "Password for PostgreSQL user that will be used by Redash for accessing the database."
+    from: "[A-Z0-9]{16}"
+    generate: expression
+    required: true
+
+  - name: REDASH_POSTGRESQL_DATABASE
+    displayName: "Redash PostgreSQL Database Name"
+    description: "Database Name for PostgreSQL user that will be used by Redash."
+    value: "redash"
+    required: true
+
+  - name: REDASH_POSTGRESQL_MEMORY_LIMIT
+    displayName: "Redash PostgreSQL Memory Limit"
+    description: "Maximum amount of memory the Redash PostgreSQL can use."
+    value: "512Mi"
+    required: true
+
+  - name: REDASH_POSTGRESQL_VOLUME_CAPACITY
+    displayName: "Redash PostgreSQL Volume Capacity"
+    description: "Volume space available for Redash PostgreSQL data, e.g. 512Mi, 2Gi."
+    value: "25Gi"
+    required: true
+
+  - name: REDASH_REDIS_PASSWORD
+    displayName: "Redash Redis Password"
+    description: "Password for Redis that will be used by Redash for accessing the database."
+    from: "[A-Z0-9]{16}"
+    generate: expression
+    required: true
+
+  - name: REDASH_REDIS_MEMORY_LIMIT
+    displayName: "Redash Redis Memory Limit"
+    description: "Maximum amount of memory the Redash Redis can use."
+    value: "512Mi"
+    required: true
+
+  - name: REDASH_REDIS_VOLUME_CAPACITY
+    displayName: "Redash Redis Volume Capacity"
+    description: "Volume space available for Redash Redis data, e.g. 512Mi, 2Gi."
+    value: "10Gi"
+    required: true
+
+objects:
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      annotations:
+        template.openshift.io/expose-database_name: '{.data[''database-name'']}'
+        template.openshift.io/expose-password: '{.data[''database-password'']}'
+        template.openshift.io/expose-username: '{.data[''database-user'']}'
+      name: ${REDASH_NAME}-postgresql
+    stringData:
+      database-name: ${REDASH_POSTGRESQL_DATABASE}
+      database-password: ${REDASH_POSTGRESQL_PASSWORD}
+      database-user: ${REDASH_POSTGRESQL_USER}
+
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      annotations:
+        template.openshift.io/expose-password: '{.data[''database-password'']}'
+      name: ${REDASH_NAME}-redis
+    stringData:
+      database-password: ${REDASH_REDIS_PASSWORD}
+
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      annotations:
+        template.openshift.io/expose-redash_redis_url: '{.data[''redash-redis-url'']}'
+        template.openshift.io/expose-redash_database_url: '{.data[''redash-database-url'']}'
+        template.openshift.io/expose-redash_domain_url: '{.data[''redash-domain-url'']}'
+        template.openshift.io/expose-redash_cookie_secret: '{.data[''redash-cookie-secret'']}'
+      name: ${REDASH_NAME}-config
+    stringData:
+      redash-redis-url: redis://:${REDASH_REDIS_PASSWORD}@${REDASH_NAME}-redis:6379/0
+      redash-database-url: postgresql://${REDASH_POSTGRESQL_USER}:${REDASH_POSTGRESQL_PASSWORD}@${REDASH_NAME}-postgresql/${REDASH_POSTGRESQL_DATABASE}
+      redash-domain-url: ${REDASH_DOMAIN_URL}
+      redash-cookie-secret: ${REDASH_COOKIE_SECRET}
+
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      annotations:
+        template.openshift.io/expose-redash_mail_server: '{.data[''redash-mail-server'']}'
+        template.openshift.io/expose-redash_mail_port: '{.data[''redash-mail-port'']}'
+        template.openshift.io/expose-redash_mail_use_ssl: '{.data[''redash-mail-use-ssl'']}'
+        template.openshift.io/expose-redash_mail_use_tls: '{.data[''redash-mail-use-tls'']}'
+        template.openshift.io/expose-redash_mail_username: '{.data[''redash-mail-username'']}'
+        template.openshift.io/expose-redash_mail_password: '{.data[''redash-mail-password'']}'
+        template.openshift.io/expose-redash_mail_default_sender: '{.data[''redash-mail-default-sender'']}'
+      name: ${REDASH_NAME}-mailer
+    stringData:
+      redash-mail-server: ${REDASH_MAIL_SERVER}
+      redash-mail-port: ${REDASH_MAIL_PORT}
+      redash-mail-use-ssl: ${REDASH_MAIL_USE_SSL}
+      redash-mail-use-tls: ${REDASH_MAIL_USE_TLS}
+      redash-mail-username: ${REDASH_MAIL_USERNAME}
+      redash-mail-password: ${REDASH_MAIL_PASSWORD}
+      redash-mail-default-sender: ${REDASH_MAIL_DEFAULT_SENDER}
+
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      annotations:
+        template.openshift.io/expose-postgresql_uri: postgres://${REDASH_POSTGRESQL_USER}:${REDASH_POSTGRESQL_PASSWORD}@{.spec.clusterIP}:{.spec.ports[?(.name=="postgresql")].port}
+      name: ${REDASH_NAME}-postgresql
+    spec:
+      ports:
+      - name: postgresql
+        port: 5432
+        protocol: TCP
+        targetPort: 5432
+      selector:
+        name: ${REDASH_NAME}-postgresql
+      sessionAffinity: None
+      type: ClusterIP
+    status:
+      loadBalancer: {}
+
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      annotations:
+        template.openshift.io/expose-redis_uri: redis://:${REDASH_REDIS_PASSWORD}@{.spec.clusterIP}:{.spec.ports[?(.name=="redis")].port}
+      name: ${REDASH_NAME}-redis
+    spec:
+      ports:
+      - name: redis
+        port: 6379
+        protocol: TCP
+        targetPort: 6379
+      selector:
+        name: ${REDASH_NAME}-redis
+      sessionAffinity: None
+      type: ClusterIP
+    status:
+      loadBalancer: {}
+
+  - kind: Service
+    apiVersion: v1
+    metadata:
+      name: "${REDASH_NAME}-web"
+    spec:
+      ports:
+        - name: redash
+          port: 5000
+          protocol: TCP
+          targetPort: 5000
+      selector:
+        name: "${REDASH_NAME}-web"
+      sessionAffinity: None
+      type: ClusterIP
+    status:
+      loadBalancer: {}
+
+  - kind: Route
+    apiVersion: v1
+    metadata:
+      name: "${REDASH_NAME}-web"
+    spec:
+      host: ${REDASH_DOMAIN_URL}
+      to:
+        kind: Service
+        name: ${REDASH_NAME}-web
+      port:
+        targetPort: redash
+
+  - apiVersion: v1
+    kind: DeploymentConfig
+    metadata:
+      annotations:
+        template.alpha.openshift.io/wait-for-ready: "true"
+      name: ${REDASH_NAME}-postgresql
+    spec:
+      replicas: 1
+      selector:
+        name: ${REDASH_NAME}-postgresql
+      strategy:
+        type: Recreate
+      template:
+        metadata:
+          labels:
+            name: ${REDASH_NAME}-postgresql
+        spec:
+          containers:
+          - capabilities: {}
+            env:
+            - name: POSTGRESQL_USER
+              valueFrom:
+                secretKeyRef:
+                  key: database-user
+                  name: ${REDASH_NAME}-postgresql
+            - name: POSTGRESQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: database-password
+                  name: ${REDASH_NAME}-postgresql
+            - name: POSTGRESQL_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  key: database-name
+                  name: ${REDASH_NAME}-postgresql
+            image: 'telkomindonesia/alpine:postgresql-9.6'
+            imagePullPolicy: Always
+            livenessProbe:
+              initialDelaySeconds: 30
+              tcpSocket:
+                port: 5432
+              timeoutSeconds: 1
+            name: ${REDASH_NAME}-postgresql
+            ports:
+            - containerPort: 5432
+              protocol: TCP
+            readinessProbe:
+              exec:
+                command:
+                - /bin/sh
+                - -i
+                - -c
+                - psql -h 127.0.0.1 -U $POSTGRESQL_USER -q -d $POSTGRESQL_DATABASE -c
+                  'SELECT 1'
+              initialDelaySeconds: 5
+              timeoutSeconds: 1
+            resources:
+              limits:
+                memory: ${REDASH_POSTGRESQL_MEMORY_LIMIT}
+            securityContext:
+              capabilities: {}
+              privileged: false
+            terminationMessagePath: /dev/termination-log
+            volumeMounts:
+            - name: ${REDASH_NAME}-postgresql-data
+              mountPath: /var/lib/pgsql/data
+          dnsPolicy: ClusterFirst
+          restartPolicy: Always
+          volumes:
+          - name: ${REDASH_NAME}-postgresql-data
+            persistentVolumeClaim:
+              claimName: ${REDASH_NAME}-postgresql
+      triggers:
+      - type: ConfigChange
+    status: {}
+
+  - apiVersion: v1
+    kind: DeploymentConfig
+    metadata:
+      annotations:
+        template.alpha.openshift.io/wait-for-ready: "true"
+      name: ${REDASH_NAME}-redis
+    spec:
+      replicas: 1
+      selector:
+        name: ${REDASH_NAME}-redis
+      strategy:
+        type: Recreate
+      template:
+        metadata:
+          labels:
+            name: ${REDASH_NAME}-redis
+        spec:
+          containers:
+          - capabilities: {}
+            env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: database-password
+                  name: ${REDASH_NAME}-redis
+            image: 'telkomindonesia/alpine:redis-3.2'
+            imagePullPolicy: Always
+            livenessProbe:
+              initialDelaySeconds: 30
+              tcpSocket:
+                port: 6379
+              timeoutSeconds: 1
+            name: ${REDASH_NAME}-redis
+            ports:
+            - containerPort: 6379
+              protocol: TCP
+            readinessProbe:
+              exec:
+                command:
+                - /bin/sh
+                - -i
+                - -c
+                - test "$(redis-cli -h 127.0.0.1 -a $REDIS_PASSWORD ping)" == "PONG"
+              initialDelaySeconds: 5
+              timeoutSeconds: 1
+            resources:
+              limits:
+                memory: ${REDASH_REDIS_MEMORY_LIMIT}
+            securityContext:
+              capabilities: {}
+              privileged: false
+            terminationMessagePath: /dev/termination-log
+            volumeMounts:
+            - name: ${REDASH_NAME}-redis-data
+              mountPath: /var/lib/redis/data
+          dnsPolicy: ClusterFirst
+          restartPolicy: Always
+          volumes:
+          - name: ${REDASH_NAME}-redis-data
+            persistentVolumeClaim:
+              claimName: ${REDASH_NAME}-redis
+      triggers:
+      - type: ConfigChange
+    status: {}
+
+  - kind: DeploymentConfig
+    apiVersion: v1
+    metadata:
+      annotations:
+        template.alpha.openshift.io/wait-for-ready: "true"
+      name: "${REDASH_NAME}-web"
+      label:
+        name: "${REDASH_NAME}-web"
+    spec:
+      replicas: 1
+      selector:
+        name: "${REDASH_NAME}-web"
+      strategy:
+        type: Rolling
+      template:
+        metadata:
+          labels:
+            name: "${REDASH_NAME}-web"
+        spec:
+          containers:
+            - env:
+                - name: 'PYTHONUNBUFFERED'
+                  value: '0'
+                - name: 'REDASH_LOG_LEVEL'
+                  value: 'INFO'
+                - name: 'REDASH_HOST'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-config
+                      key: redash-domain-url
+                - name: 'REDASH_REDIS_URL'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-config
+                      key: redash-redis-url
+                - name: 'REDASH_DATABASE_URL'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-config
+                      key: redash-database-url
+                - name: 'REDASH_COOKIE_SECRET'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-config
+                      key: redash-cookie-secret
+                - name: 'REDASH_MAIL_SERVER'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-mailer
+                      key: redash-mail-server
+                - name: 'REDASH_MAIL_PORT'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-mailer
+                      key: redash-mail-port
+                - name: 'REDASH_MAIL_USE_TLS'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-mailer
+                      key: redash-mail-use-tls
+                - name: 'REDASH_MAIL_USE_SSL'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-mailer
+                      key: redash-mail-use-ssl
+                - name: 'REDASH_MAIL_USERNAME'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-mailer
+                      key: redash-mail-username
+                - name: 'REDASH_MAIL_PASSWORD'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-mailer
+                      key: redash-mail-password
+                - name: 'REDASH_MAIL_DEFAULT_SENDER'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-mailer
+                      key: redash-mail-default-sender
+                - name: 'REDASH_WEB_WORKERS'
+                  value: '2'
+              name: "${REDASH_NAME}-web"
+              image: 'telkomindonesia/debian:redash-7.0'
+              imagePullPolicy: Always
+              ports:
+                - containerPort: 5000
+                  protocol: TCP
+              livenessProbe:
+                failureThreshold: 3
+                initialDelaySeconds: 30
+                periodSeconds: 10
+                successThreshold: 1
+                tcpSocket:
+                  port: 5000
+                timeoutSeconds: 1
+              readinessProbe:
+                failureThreshold: 3
+                initialDelaySeconds: 30
+                periodSeconds: 10
+                successThreshold: 1
+                tcpSocket:
+                  port: 5000
+                timeoutSeconds: 1
+              resources:
+                limits:
+                  memory: ${REDASH_MEMORY_LIMIT}
+      test: false
+      triggers:
+        - type: ConfigChange
+
+  - kind: DeploymentConfig
+    apiVersion: v1
+    metadata:
+      annotations:
+        template.alpha.openshift.io/wait-for-ready: "true"
+      name: "${REDASH_NAME}-scheduler"
+      label:
+        name: "${REDASH_NAME}-scheduler"
+    spec:
+      replicas: 1
+      selector:
+        name: "${REDASH_NAME}-scheduler"
+      strategy:
+        type: Rolling
+      template:
+        metadata:
+          labels:
+            name: "${REDASH_NAME}-scheduler"
+        spec:
+          containers:
+            - env:
+                - name: 'PYTHONUNBUFFERED'
+                  value: '0'
+                - name: 'REDASH_LOG_LEVEL'
+                  value: 'INFO'
+                - name: 'REDASH_HOST'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-config
+                      key: redash-domain-url
+                - name: 'REDASH_REDIS_URL'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-config
+                      key: redash-redis-url
+                - name: 'REDASH_DATABASE_URL'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-config
+                      key: redash-database-url
+                - name: 'REDASH_COOKIE_SECRET'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-config
+                      key: redash-cookie-secret
+                - name: 'REDASH_MAIL_SERVER'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-mailer
+                      key: redash-mail-server
+                - name: 'REDASH_MAIL_PORT'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-mailer
+                      key: redash-mail-port
+                - name: 'REDASH_MAIL_USE_TLS'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-mailer
+                      key: redash-mail-use-tls
+                - name: 'REDASH_MAIL_USE_SSL'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-mailer
+                      key: redash-mail-use-ssl
+                - name: 'REDASH_MAIL_USERNAME'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-mailer
+                      key: redash-mail-username
+                - name: 'REDASH_MAIL_PASSWORD'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-mailer
+                      key: redash-mail-password
+                - name: 'REDASH_MAIL_DEFAULT_SENDER'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-mailer
+                      key: redash-mail-default-sender
+                - name: 'QUEUES'
+                  value: 'celery'
+                - name: 'WORKERS_COUNT'
+                  value: '1'
+              name: "${REDASH_NAME}-scheduler"
+              image: 'telkomindonesia/debian:redash-7.0'
+              imagePullPolicy: Always
+              command: 
+                - "redash"
+              args:
+                - "scheduler"
+              resources:
+                limits:
+                  memory: ${REDASH_MEMORY_LIMIT}
+      test: false
+      triggers:
+        - type: ConfigChange
+
+  - kind: DeploymentConfig
+    apiVersion: v1
+    metadata:
+      annotations:
+        template.alpha.openshift.io/wait-for-ready: "true"
+      name: "${REDASH_NAME}-adhoc"
+      label:
+        name: "${REDASH_NAME}-adhoc"
+    spec:
+      replicas: 1
+      selector:
+        name: "${REDASH_NAME}-adhoc"
+      strategy:
+        type: Rolling
+      template:
+        metadata:
+          labels:
+            name: "${REDASH_NAME}-adhoc"
+        spec:
+          containers:
+            - env:
+                - name: 'PYTHONUNBUFFERED'
+                  value: '0'
+                - name: 'REDASH_LOG_LEVEL'
+                  value: 'INFO'
+                - name: 'REDASH_HOST'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-config
+                      key: redash-domain-url
+                - name: 'REDASH_REDIS_URL'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-config
+                      key: redash-redis-url
+                - name: 'REDASH_DATABASE_URL'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-config
+                      key: redash-database-url
+                - name: 'REDASH_COOKIE_SECRET'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-config
+                      key: redash-cookie-secret
+                - name: 'REDASH_MAIL_SERVER'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-mailer
+                      key: redash-mail-server
+                - name: 'REDASH_MAIL_PORT'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-mailer
+                      key: redash-mail-port
+                - name: 'REDASH_MAIL_USE_TLS'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-mailer
+                      key: redash-mail-use-tls
+                - name: 'REDASH_MAIL_USE_SSL'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-mailer
+                      key: redash-mail-use-ssl
+                - name: 'REDASH_MAIL_USERNAME'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-mailer
+                      key: redash-mail-username
+                - name: 'REDASH_MAIL_PASSWORD'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-mailer
+                      key: redash-mail-password
+                - name: 'REDASH_MAIL_DEFAULT_SENDER'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-mailer
+                      key: redash-mail-default-sender
+                - name: 'QUEUES'
+                  value: 'queries'
+                - name: 'WORKERS_COUNT'
+                  value: '2'
+              name: "${REDASH_NAME}-adhoc"
+              image: 'telkomindonesia/debian:redash-7.0'
+              imagePullPolicy: Always
+              command: 
+                - "redash"
+              args:
+                - "worker"
+              resources:
+                limits:
+                  memory: ${REDASH_MEMORY_LIMIT}
+      test: false
+      triggers:
+        - type: ConfigChange
+
+  - kind: DeploymentConfig
+    apiVersion: v1
+    metadata:
+      annotations:
+        template.alpha.openshift.io/wait-for-ready: "true"
+      name: "${REDASH_NAME}-worker"
+      label:
+        name: "${REDASH_NAME}-worker"
+    spec:
+      replicas: 1
+      selector:
+        name: "${REDASH_NAME}-worker"
+      strategy:
+        type: Rolling
+      template:
+        metadata:
+          labels:
+            name: "${REDASH_NAME}-worker"
+        spec:
+          containers:
+            - env:
+                - name: 'PYTHONUNBUFFERED'
+                  value: '0'
+                - name: 'REDASH_LOG_LEVEL'
+                  value: 'INFO'
+                - name: 'REDASH_HOST'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-config
+                      key: redash-domain-url
+                - name: 'REDASH_REDIS_URL'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-config
+                      key: redash-redis-url
+                - name: 'REDASH_DATABASE_URL'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-config
+                      key: redash-database-url
+                - name: 'REDASH_COOKIE_SECRET'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-config
+                      key: redash-cookie-secret
+                - name: 'REDASH_MAIL_SERVER'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-mailer
+                      key: redash-mail-server
+                - name: 'REDASH_MAIL_PORT'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-mailer
+                      key: redash-mail-port
+                - name: 'REDASH_MAIL_USE_TLS'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-mailer
+                      key: redash-mail-use-tls
+                - name: 'REDASH_MAIL_USE_SSL'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-mailer
+                      key: redash-mail-use-ssl
+                - name: 'REDASH_MAIL_USERNAME'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-mailer
+                      key: redash-mail-username
+                - name: 'REDASH_MAIL_PASSWORD'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-mailer
+                      key: redash-mail-password
+                - name: 'REDASH_MAIL_DEFAULT_SENDER'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-mailer
+                      key: redash-mail-default-sender
+                - name: 'QUEUES'
+                  value: 'scheduled_queries,schemas'
+                - name: 'WORKERS_COUNT'
+                  value: '1'
+              name: "${REDASH_NAME}-worker"
+              image: 'telkomindonesia/debian:redash-7.0'
+              imagePullPolicy: Always
+              command: 
+                - "redash"
+              args:
+                - "worker"
+              resources:
+                limits:
+                  memory: ${REDASH_MEMORY_LIMIT}
+      test: false
+      triggers:
+        - type: ConfigChange
+
+  - apiVersion: batch/v1
+    kind: Job
+    metadata:
+      annotations:
+        template.alpha.openshift.io/wait-for-ready: "true"
+      name: ${REDASH_NAME}-migrate
+    spec:
+      selector:
+        name: "${REDASH_NAME}-migrate"
+      parallelism: 1    
+      completions: 1    
+      template:         
+        metadata:
+          labels:
+            name: "${REDASH_NAME}-migrate"
+        spec:
+          containers:
+            - env:
+                - name: 'PYTHONUNBUFFERED'
+                  value: '0'
+                - name: 'REDASH_LOG_LEVEL'
+                  value: 'INFO'
+                - name: 'REDASH_HOST'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-config
+                      key: redash-domain-url
+                - name: 'REDASH_REDIS_URL'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-config
+                      key: redash-redis-url
+                - name: 'REDASH_DATABASE_URL'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-config
+                      key: redash-database-url
+                - name: 'REDASH_COOKIE_SECRET'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-config
+                      key: redash-cookie-secret
+                - name: 'REDASH_MAIL_SERVER'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-mailer
+                      key: redash-mail-server
+                - name: 'REDASH_MAIL_PORT'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-mailer
+                      key: redash-mail-port
+                - name: 'REDASH_MAIL_USE_TLS'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-mailer
+                      key: redash-mail-use-tls
+                - name: 'REDASH_MAIL_USE_SSL'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-mailer
+                      key: redash-mail-use-ssl
+                - name: 'REDASH_MAIL_USERNAME'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-mailer
+                      key: redash-mail-username
+                - name: 'REDASH_MAIL_PASSWORD'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-mailer
+                      key: redash-mail-password
+                - name: 'REDASH_MAIL_DEFAULT_SENDER'
+                  valueFrom:
+                    secretKeyRef:
+                      name: ${REDASH_NAME}-mailer
+                      key: redash-mail-default-sender
+              name: ${REDASH_NAME}-migrate
+              image: 'telkomindonesia/debian:redash-7.0'
+              imagePullPolicy: Always
+              command: 
+                - "redash"
+              args:
+                - "create_db"
+          restartPolicy: OnFailure
+
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: ${REDASH_NAME}-postgresql
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: '${REDASH_POSTGRESQL_VOLUME_CAPACITY}'
+
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: ${REDASH_NAME}-redis
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: '${REDASH_REDIS_VOLUME_CAPACITY}'
