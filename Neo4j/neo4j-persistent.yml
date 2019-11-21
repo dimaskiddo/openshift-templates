@@ -1,0 +1,164 @@
+kind: Template
+apiVersion: v1
+metadata:
+  name: neo4j-persistent
+  annotations:
+    openshift.io/display-name: 'Neo4j'
+    description: "Neo4j Graph Database. You must have persistent volumes available in your cluster to use this template."
+    tags: "graph,database,neo4j"
+    iconClass: "icon-datavirt"
+
+parameters:
+  - name: NEO4J_NAME
+    displayName: "Neo4j Name"
+    description: "A reference to Neo4j name."
+    from: "[a-zA-Z0-9]{10}"
+    value: "neo4j"
+    required: true
+
+  - name: NEO4J_PASSWORD
+    displayName: "Neo4j Password"
+    description: "A reference to Neo4j password."
+    from: "[a-zA-Z0-9]{16}"
+    generate: expression
+    required: true
+
+  - name: NEO4J_DOMAIN_URL
+    displayName: "Neo4j Domain URL"
+    description: "A reference to Neo4j domain URL."
+    from: "[a-zA-Z0-9]{100}"
+
+  - name: NEO4J_MEMORY_LIMIT
+    displayName: "Neo4j Memory Limit"
+    description: "Maximum amount of memory the Neo4j can use, e.g. 512M, 2G"
+    value: "1G"
+    required: true
+
+  - name: NEO4J_VOLUME_CAPACITY
+    displayName: "Neo4j Volume Capacity"
+    description: "Volume space available for Neo4j data, e.g. 512Mi, 2Gi."
+    value: "1Gi"
+    required: true
+
+objects:
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      annotations:
+        template.openshift.io/expose-neo4j-password: '{.data[''neo4j-password'']}'
+      name: '${NEO4J_NAME}'
+    stringData:
+      neo4j-password: '${NEO4J_PASSWORD}'
+
+  - kind: Service
+    apiVersion: v1
+    metadata:
+      name: "${NEO4J_NAME}-web"
+    spec:
+      ports:
+        - name: "neo4j-http"
+          port: "7474"
+        - name: "neo4j-https"
+          port: "7473"
+      selector:
+        name: "${NEO4J_NAME}"
+
+  - kind: Service
+    apiVersion: v1
+    metadata:
+      name: "${NEO4J_NAME}-bolt"
+    spec:
+      ports:
+        - name: "neo4j-bolt"
+          port: "7687"
+      selector:
+        name: "${NEO4J_NAME}"
+
+  - kind: Route
+    apiVersion: v1
+    metadata:
+      name: "${NEO4J_NAME}"
+    spec:
+      host: ${NEO4J_DOMAIN_URL}
+      to:
+        kind: Service
+        name: ${NEO4J_NAME}-web
+      port:
+        targetPort: neo4j-http
+
+  - kind: DeploymentConfig
+    apiVersion: v1
+    metadata:
+      name: "${NEO4J_NAME}"
+      label:
+        name: "${NEO4J_NAME}"
+    spec:
+      replicas: 1
+      selector:
+        name: "${NEO4J_NAME}"
+      strategy:
+        type: Recreate
+      template:
+        metadata:
+          labels:
+            name: "${NEO4J_NAME}"
+        spec:
+          containers:
+            - env:
+              - name: 'NEO4J_JAVA_OPTS'
+                value: '-Xms${NEO4J_MEMORY_LIMIT} -Xmx${NEO4J_MEMORY_LIMIT}'
+              - name: 'NEO4J_PASSWORD'
+                valueFrom:
+                  secretKeyRef:
+                    name: '${NEO4J_NAME}'
+                    key: neo4j-password
+              name: "${NEO4J_NAME}"
+              image: 'telkomindonesia/alpine:neo4j-3.5'
+              imagePullPolicy: Always
+              ports:
+                - containerPort: 7474
+                  protocol: TCP
+                - containerPort: 7473
+                  protocol: TCP
+                - containerPort: 7687
+                  protocol: TCP
+              resources:
+                limits:
+                  memory: ${NEO4J_MEMORY_LIMIT}
+              livenessProbe:
+                failureThreshold: 3
+                initialDelaySeconds: 30
+                periodSeconds: 10
+                successThreshold: 1
+                tcpSocket:
+                  port: 7687
+                timeoutSeconds: 1
+              readinessProbe:
+                failureThreshold: 3
+                initialDelaySeconds: 30
+                periodSeconds: 10
+                successThreshold: 1
+                tcpSocket:
+                  port: 7687
+                timeoutSeconds: 1
+              volumeMounts:
+                - name: neo4j-data
+                  mountPath: "/var/lib/neo4j/data"
+          volumes:
+            - name: neo4j-data
+              persistentVolumeClaim:
+                claimName: ${NEO4J_NAME}
+      test: false
+      triggers:
+        - type: ConfigChange
+
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: ${NEO4J_NAME}
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: '${NEO4J_VOLUME_CAPACITY}'
