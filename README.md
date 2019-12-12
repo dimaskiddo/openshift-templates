@@ -1,6 +1,6 @@
 # OpenShift Custom Catalog Templates
 
-This repository contain custom catalog template for Red Hat OpenShift
+This repository contain Red Hat OpenShift custom catalog templates
 
 - Apache Kafka
 - ElasticSearch
