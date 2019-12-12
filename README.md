@@ -1,4 +1,4 @@
-# OpenShift Custom Catalog Template
+# OpenShift Custom Catalog Templates
 
 This repository contain custom catalog template for Red Hat OpenShift
 
