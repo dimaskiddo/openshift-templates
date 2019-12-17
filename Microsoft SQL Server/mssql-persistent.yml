@@ -1,0 +1,122 @@
+kind: Template
+apiVersion: v1
+metadata:
+  name: mssql-persistent
+  annotations:
+    openshift.io/display-name: 'Microsoft SQL Server'
+    description: "Microsoft SQL Server. You must have persistent volumes available in your cluster to use this template."
+    tags: "database,microsoft,sql,server"
+    iconClass: "fa fa-windows"
+
+parameters:
+  - name: MSSQL_NAME
+    displayName: "Microsoft SQL Server Name"
+    description: "A reference to Microsoft SQL Server name."
+    from: "[a-zA-Z0-9]{10}"
+    value: "mssql"
+    required: true
+
+  - name: MSSQL_SA_PASSWORD
+    displayName: "Microsoft SQL Server Access SA password"
+    description: "A reference to Microsoft SQL Server SA password."
+    from: "[a-zA-Z0-9]{20}"
+    generate: expression
+    required: true
+
+  - name: MSSQL_MEMORY_LIMIT
+    displayName: "Microsoft SQL Server Memory Limit"
+    description: "Maximum amount of memory the Microsoft SQL Server can use, e.g. 512Mi, 2Gi."
+    value: "1Gi"
+    required: true
+
+  - name: MSSQL_VOLUME_CAPACITY
+    displayName: "Microsoft SQL Server Volume Capacity"
+    description: "Volume space available for Microsoft SQL Server data, e.g. 512Mi, 2Gi."
+    value: "25Gi"
+    required: true
+
+objects:
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      annotations:
+        template.openshift.io/expose-mssql-sa-password: '{.data[''mssql-sa-password'']}'
+      name: '${MSSQL_NAME}'
+    stringData:
+      mssql-sa-password: '${MSSQL_SA_PASSWORD}'
+
+  - kind: Service
+    apiVersion: v1
+    metadata:
+      name: "${MSSQL_NAME}"
+    spec:
+      ports:
+        - name: "sql-server"
+          port: "1433"
+      selector:
+        name: "${MSSQL_NAME}"
+
+  - kind: DeploymentConfig
+    apiVersion: v1
+    metadata:
+      name: "${MSSQL_NAME}"
+      label:
+        name: "${MSSQL_NAME}"
+    spec:
+      replicas: 1
+      selector:
+        name: "${MSSQL_NAME}"
+      strategy:
+        type: Recreate
+      template:
+        metadata:
+          labels:
+            name: "${MSSQL_NAME}"
+        spec:
+          containers:
+            - env:
+              - name: 'MSSQL_SA_PASSWORD'
+                valueFrom:
+                  secretKeyRef:
+                    name: '${MSSQL_NAME}'
+                    key: mssql-sa-password
+              name: "${MSSQL_NAME}"
+              image: 'telkomindonesia/debian:mssql-2017'
+              imagePullPolicy: Always
+              ports:
+                - containerPort: 1433
+                  protocol: TCP
+              resources:
+                limits:
+                  memory: ${MSSQL_MEMORY_LIMIT}
+              livenessProbe:
+                initialDelaySeconds: 30
+                tcpSocket:
+                  port: 1433
+                timeoutSeconds: 1
+              readinessProbe:
+                initialDelaySeconds: 5
+                tcpSocket:
+                  port: 1433
+                timeoutSeconds: 1
+              volumeMounts:
+                - name: mssql-data
+                  mountPath: "/var/opt/mssql"
+          volumes:
+            - name: mssql-data
+              persistentVolumeClaim:
+                claimName: ${MSSQL_NAME}
+      test: false
+      triggers:
+        - type: ConfigChange
+
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: ${MSSQL_NAME}
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: '${MSSQL_VOLUME_CAPACITY}'
