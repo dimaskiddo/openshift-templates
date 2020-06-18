@@ -1,0 +1,132 @@
+kind: Template
+apiVersion: v1
+metadata:
+  name: minio-ephemeral
+  annotations:
+    openshift.io/display-name: 'Minio (Ephemeral)'
+    description: "Minio. This template will create service without persistent storage."
+    tags: "object,storage,s3,minio"
+    iconClass: "fa fa-hdd-o"
+
+parameters:
+  - name: MINIO_NAME
+    displayName: "Minio Name"
+    description: "A reference to Minio name."
+    from: "[a-zA-Z0-9]{10}"
+    value: "minio"
+    required: true
+
+  - name: MINIO_ACCESS_KEY
+    displayName: "Minio Access Key"
+    description: "A reference to Minio access key."
+    from: "[a-zA-Z0-9]{20}"
+    generate: expression
+    required: true
+
+  - name: MINIO_SECRET_KEY
+    displayName: "Minio Secret Key"
+    description: "A reference to Minio secret key."
+    from: "[a-zA-Z0-9]{40}"
+    generate: expression
+    required: true
+
+  - name: MINIO_DOMAIN_URL
+    displayName: "Minio Domain URL"
+    description: "A reference to Minio domain URL."
+    from: "[a-zA-Z0-9]{100}"
+
+objects:
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      annotations:
+        template.openshift.io/expose-minio-access-key: '{.data[''minio-access-key'']}'
+        template.openshift.io/expose-minio-secret-key: '{.data[''minio-secret-key'']}'
+      name: '${MINIO_NAME}'
+    stringData:
+      minio-access-key: '${MINIO_ACCESS_KEY}'
+      minio-secret-key: '${MINIO_SECRET_KEY}'
+
+  - kind: Service
+    apiVersion: v1
+    metadata:
+      name: "${MINIO_NAME}"
+    spec:
+      ports:
+        - name: "minio-http"
+          port: "9000"
+      selector:
+        name: "${MINIO_NAME}"
+
+  - kind: Route
+    apiVersion: v1
+    metadata:
+      name: "${MINIO_NAME}"
+    spec:
+      host: ${MINIO_DOMAIN_URL}
+      to:
+        kind: Service
+        name: ${MINIO_NAME}
+      port:
+        targetPort: minio-http
+
+  - kind: DeploymentConfig
+    apiVersion: v1
+    metadata:
+      name: "${MINIO_NAME}"
+      label:
+        name: "${MINIO_NAME}"
+    spec:
+      replicas: 1
+      selector:
+        name: "${MINIO_NAME}"
+      strategy:
+        type: Recreate
+      template:
+        metadata:
+          labels:
+            name: "${MINIO_NAME}"
+        spec:
+          containers:
+            - env:
+              - name: 'MINIO_ACCESS_KEY'
+                valueFrom:
+                  secretKeyRef:
+                    name: '${MINIO_NAME}'
+                    key: minio-access-key
+              - name: 'MINIO_SECRET_KEY'
+                valueFrom:
+                  secretKeyRef:
+                    name: '${MINIO_NAME}'
+                    key: minio-secret-key
+              name: "${MINIO_NAME}"
+              image: 'telkomindonesia/alpine:minio-1.0'
+              imagePullPolicy: Always
+              ports:
+                - containerPort: 9000
+                  protocol: TCP
+              livenessProbe:
+                failureThreshold: 3
+                initialDelaySeconds: 30
+                periodSeconds: 10
+                successThreshold: 1
+                tcpSocket:
+                  port: 9000
+                timeoutSeconds: 1
+              readinessProbe:
+                failureThreshold: 3
+                initialDelaySeconds: 30
+                periodSeconds: 10
+                successThreshold: 1
+                tcpSocket:
+                  port: 9000
+                timeoutSeconds: 1
+              volumeMounts:
+                - name: minio-data
+                  mountPath: "/data/minio"
+          volumes:
+            - name: minio-data
+              emptyDir: {}
+      test: false
+      triggers:
+        - type: ConfigChange
