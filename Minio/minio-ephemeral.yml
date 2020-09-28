@@ -100,7 +100,7 @@ objects:
                     name: '${MINIO_NAME}'
                     key: minio-secret-key
               name: "${MINIO_NAME}"
-              image: 'telkomindonesia/alpine:minio-1.0'
+              image: 'telkomindonesia/debian:minio-1.0'
               imagePullPolicy: Always
               ports:
                 - containerPort: 9000
