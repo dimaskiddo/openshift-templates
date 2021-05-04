@@ -1,0 +1,144 @@
+kind: Template
+apiVersion: v1
+metadata:
+  name: file-browser-persistent
+  annotations:
+    openshift.io/display-name: 'File Browser'
+    description: "File Browser. You must have persistent volumes available in your cluster to use this template."
+    tags: "storage,filedrive"
+    iconClass: "fa fa-folder"
+
+parameters:
+  - name: FILE_BROWSER_NAME
+    displayName: "File Browser Name"
+    description: "A reference to File Browser name."
+    from: "[a-zA-Z0-9]{10}"
+    value: "drive"
+    required: true
+
+  - name: FILE_BROWSER_BRANDING_NAME
+    displayName: "File Browser Branding Name"
+    description: "A reference to File Browser branding name."
+
+  - name: FILE_BROWSER_ADMIN_USERNAME
+    displayName: "File Browser Admin Username"
+    description: "A reference to File Browser admin username."
+    from: "admin[A-Z0-9]{3}"
+    generate: expression
+    required: true
+
+  - name: FILE_BROWSER_ADMIN_PASSWORD
+    displayName: "File Browser Admin Password"
+    description: "A reference to File Browser admin password."
+    from: "[a-zA-Z0-9]{16}"
+    generate: expression
+    required: true
+
+  - name: FILE_BROWSER_DOMAIN_URL
+    displayName: "File Browser Domain URL"
+    description: "A reference to File Browser domain URL."
+    from: "[a-zA-Z0-9]{100}"
+
+  - name: FILE_BROWSER_VOLUME_CAPACITY
+    displayName: "File Browser Volume Capacity"
+    description: "Volume space available for File Browser data, e.g. 512Mi, 2Gi."
+    value: "1Gi"
+    required: true
+
+objects:
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      name: '${FILE_BROWSER_NAME}'
+    stringData:
+      FB_USERNAME: '${FILE_BROWSER_ADMIN_USERNAME}'
+      FB_PASSWORD: '${FILE_BROWSER_ADMIN_PASSWORD}'
+
+  - kind: Service
+    apiVersion: v1
+    metadata:
+      name: "${FILE_BROWSER_NAME}"
+    spec:
+      ports:
+        - name: "file-browser-http"
+          port: "8080"
+      selector:
+        name: "${FILE_BROWSER_NAME}"
+
+  - kind: Route
+    apiVersion: v1
+    metadata:
+      name: "${FILE_BROWSER_NAME}"
+    spec:
+      host: ${FILE_BROWSER_DOMAIN_URL}
+      to:
+        kind: Service
+        name: ${FILE_BROWSER_NAME}
+      port:
+        targetPort: file-browser-http
+
+  - kind: DeploymentConfig
+    apiVersion: v1
+    metadata:
+      name: "${FILE_BROWSER_NAME}"
+      label:
+        name: "${FILE_BROWSER_NAME}"
+    spec:
+      replicas: 1
+      selector:
+        name: "${FILE_BROWSER_NAME}"
+      strategy:
+        type: Recreate
+      template:
+        metadata:
+          labels:
+            name: "${FILE_BROWSER_NAME}"
+        spec:
+          containers:
+            - env:
+              - name: FB_BRANDING_NAME
+                value: '${FILE_BROWSER_BRANDING_NAME}'
+              - name: FB_USERNAME
+                valueFrom:
+                  secretKeyRef:
+                    name: '${FILE_BROWSER_NAME}'
+                    key: FB_USERNAME
+              - name: FB_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: '${FILE_BROWSER_NAME}'
+                    key: FB_PASSWORD
+              name: 'filebrowser'
+              image: 'dimaskiddo/alpine:filebrowser-2.0'
+              imagePullPolicy: Always
+              ports:
+                - containerPort: 8080
+                  protocol: TCP
+              readinessProbe:
+                failureThreshold: 3
+                initialDelaySeconds: 5
+                periodSeconds: 10
+                successThreshold: 1
+                tcpSocket:
+                  port: 8080
+                timeoutSeconds: 1
+              volumeMounts:
+                - name: file-browser-data
+                  mountPath: "/data/filebrowser"
+          volumes:
+            - name: file-browser-data
+              persistentVolumeClaim:
+                claimName: ${FILE_BROWSER_NAME}
+      triggers:
+        - type: ConfigChange
+
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: ${FILE_BROWSER_NAME}
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: '${FILE_BROWSER_VOLUME_CAPACITY}'

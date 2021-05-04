@@ -48,25 +48,17 @@ objects:
             name: "${KAFKA_NAME}"
         spec:
           containers:
-            - name: "${KAFKA_NAME}"
-              image: 'telkomindonesia/alpine:kafka-2.1'
+            - name: 'kafka'
+              image: 'dimaskiddo/alpine:kafka-2.7'
               imagePullPolicy: Always
               ports:
                 - containerPort: 2181
                   protocol: TCP
                 - containerPort: 9092
                   protocol: TCP
-              livenessProbe:
-                failureThreshold: 3
-                initialDelaySeconds: 30
-                periodSeconds: 10
-                successThreshold: 1
-                tcpSocket:
-                  port: 2181
-                timeoutSeconds: 1
               readinessProbe:
                 failureThreshold: 3
-                initialDelaySeconds: 30
+                initialDelaySeconds: 10
                 periodSeconds: 10
                 successThreshold: 1
                 tcpSocket:
@@ -78,6 +70,5 @@ objects:
           volumes:
             - name: kafka-data
               emptyDir: {}
-      test: false
       triggers:
         - type: ConfigChange

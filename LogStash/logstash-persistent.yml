@@ -16,8 +16,8 @@ parameters:
     value: "logstash"
     required: true
 
-  - name: LOGSTASH_MEMORY_LIMIT
-    displayName: "LogStash Memory Limit"
+  - name: LOGSTASH_JAVA_MEMORY
+    displayName: "LogStash Java Memory"
     description: "Maximum amount of memory the LogStash can use."
     value: "1G"
     required: true
@@ -73,38 +73,27 @@ objects:
         spec:
           containers:
             - env:
-                - name: 'LS_JAVA_OPTS'
-                  value: '-Xms${LOGSTASH_MEMORY_LIMIT} -Xmx${LOGSTASH_MEMORY_LIMIT}'
-                - name: 'LS_INGRESS_PORT'
+                - name: LS_JAVA_OPTS
+                  value: '-Xms${LOGSTASH_JAVA_MEMORY} -Xmx${LOGSTASH_JAVA_MEMORY}'
+                - name: LS_INGRESS_PORT
                   value: '${LOGSTASH_INGRESS_PORT}'
-                - name: 'ES_URL'
+                - name: ES_URL
                   value: '${LOGSTASH_ELASTICSEARCH_URL}'
-              name: "${LOGSTASH_NAME}"
-              image: 'telkomindonesia/alpine:logstash-6.5'
+              name: 'logstash'
+              image: 'dimaskiddo/alpine:logstash-7.10'
               imagePullPolicy: Always
               ports:
                 - containerPort: 9600
                   protocol: TCP
                 - containerPort: ${LOGSTASH_INGRESS_PORT}
                   protocol: TCP
-              resources:
-                limits:
-                  memory: ${LOGSTASH_MEMORY_LIMIT}
-              livenessProbe:
-                failureThreshold: 3
-                initialDelaySeconds: 90
-                periodSeconds: 10
-                successThreshold: 1
-                tcpSocket:
-                  port: 9600
-                timeoutSeconds: 1
               readinessProbe:
                 failureThreshold: 3
-                initialDelaySeconds: 90
+                initialDelaySeconds: 15
                 periodSeconds: 10
                 successThreshold: 1
                 tcpSocket:
-                  port: 9600
+                  port: ${LOGSTASH_INGRESS_PORT}
                 timeoutSeconds: 1
               volumeMounts:
                 - name: logstash-data
@@ -113,7 +102,6 @@ objects:
             - name: logstash-data
               persistentVolumeClaim:
                 claimName: ${LOGSTASH_NAME}
-      test: false
       triggers:
         - type: ConfigChange
 

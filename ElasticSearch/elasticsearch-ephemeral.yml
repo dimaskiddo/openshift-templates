@@ -23,7 +23,7 @@ parameters:
 
   - name: ELASTICSEARCH_JAVA_MEMORY
     displayName: "ElasticSearch Java Memory"
-    description: "Java memory available for elasticsearch, e.g. 512M, 2G."
+    description: "Maximum amount of memory the ElasticSearch can use."
     value: "2G"
     required: true
 
@@ -72,27 +72,19 @@ objects:
         spec:
           containers:
             - env:
-                - name: 'ES_JAVA_OPTS'
+                - name: ES_JAVA_OPTS
                   value: '-Xms${ELASTICSEARCH_JAVA_MEMORY} -Xmx${ELASTICSEARCH_JAVA_MEMORY}'
-              name: "${ELASTICSEARCH_NAME}"
-              image: 'telkomindonesia/alpine:elasticsearch-6.5'
+              name: 'elasticsearch'
+              image: 'dimaskiddo/alpine:elasticsearch-7.10'
               imagePullPolicy: Always
               ports:
                 - containerPort: 9200
                   protocol: TCP
                 - containerPort: 9300
                   protocol: TCP
-              livenessProbe:
-                failureThreshold: 3
-                initialDelaySeconds: 30
-                periodSeconds: 10
-                successThreshold: 1
-                tcpSocket:
-                  port: 9200
-                timeoutSeconds: 1
               readinessProbe:
                 failureThreshold: 3
-                initialDelaySeconds: 30
+                initialDelaySeconds: 10
                 periodSeconds: 10
                 successThreshold: 1
                 tcpSocket:
@@ -104,6 +96,5 @@ objects:
           volumes:
             - name: elasticsearch-data
               emptyDir: {}
-      test: false
       triggers:
         - type: ConfigChange

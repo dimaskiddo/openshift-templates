@@ -33,11 +33,9 @@ objects:
   - apiVersion: v1
     kind: Secret
     metadata:
-      annotations:
-        template.openshift.io/expose-mssql-sa-password: '{.data[''mssql-sa-password'']}'
       name: '${MSSQL_NAME}'
     stringData:
-      mssql-sa-password: '${MSSQL_SA_PASSWORD}'
+      MSSQL_SA_PASSWORD: '${MSSQL_SA_PASSWORD}'
 
   - kind: Service
     apiVersion: v1
@@ -69,13 +67,13 @@ objects:
         spec:
           containers:
             - env:
-              - name: 'MSSQL_SA_PASSWORD'
+              - name: MSSQL_SA_PASSWORD
                 valueFrom:
                   secretKeyRef:
                     name: '${MSSQL_NAME}'
-                    key: mssql-sa-password
-              name: "${MSSQL_NAME}"
-              image: 'telkomindonesia/debian:mssql-2017'
+                    key: MSSQL_SA_PASSWORD
+              name: 'mssql'
+              image: 'dimaskiddo/debian:mssql-2017'
               imagePullPolicy: Always
               ports:
                 - containerPort: 1433
@@ -83,15 +81,13 @@ objects:
               resources:
                 limits:
                   memory: ${MSSQL_MEMORY_LIMIT}
-              livenessProbe:
-                initialDelaySeconds: 30
-                tcpSocket:
-                  port: 1433
-                timeoutSeconds: 1
               readinessProbe:
-                initialDelaySeconds: 5
+                failureThreshold: 3
+                initialDelaySeconds: 10
+                periodSeconds: 10
+                successThreshold: 1
                 tcpSocket:
-                  port: 1433
+                  port: 1443
                 timeoutSeconds: 1
               volumeMounts:
                 - name: mssql-data
@@ -99,6 +95,5 @@ objects:
           volumes:
             - name: mssql-data
               emptyDir: {}
-      test: false
       triggers:
         - type: ConfigChange

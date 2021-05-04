@@ -114,66 +114,45 @@ objects:
   - apiVersion: v1
     kind: Secret
     metadata:
-      annotations:
-        template.openshift.io/expose-database_name: '{.data[''database-name'']}'
-        template.openshift.io/expose-password: '{.data[''database-password'']}'
-        template.openshift.io/expose-username: '{.data[''database-user'']}'
       name: ${REDASH_NAME}-postgresql
     stringData:
-      database-name: ${REDASH_POSTGRESQL_DATABASE}
-      database-password: ${REDASH_POSTGRESQL_PASSWORD}
-      database-user: ${REDASH_POSTGRESQL_USER}
+      POSTGRESQL_USER: ${REDASH_POSTGRESQL_USER}
+      POSTGRESQL_PASSWORD: ${REDASH_POSTGRESQL_PASSWORD}
+      POSTGRESQL_DATABASE: ${REDASH_POSTGRESQL_DATABASE}
 
   - apiVersion: v1
     kind: Secret
     metadata:
-      annotations:
-        template.openshift.io/expose-password: '{.data[''database-password'']}'
       name: ${REDASH_NAME}-redis
     stringData:
-      database-password: ${REDASH_REDIS_PASSWORD}
+      REDIS_PASSWORD: ${REDASH_REDIS_PASSWORD}
 
   - apiVersion: v1
     kind: Secret
     metadata:
-      annotations:
-        template.openshift.io/expose-redash_redis_url: '{.data[''redash-redis-url'']}'
-        template.openshift.io/expose-redash_database_url: '{.data[''redash-database-url'']}'
-        template.openshift.io/expose-redash_domain_url: '{.data[''redash-domain-url'']}'
-        template.openshift.io/expose-redash_cookie_secret: '{.data[''redash-cookie-secret'']}'
       name: ${REDASH_NAME}-config
     stringData:
-      redash-redis-url: redis://:${REDASH_REDIS_PASSWORD}@${REDASH_NAME}-redis:6379/0
-      redash-database-url: postgresql://${REDASH_POSTGRESQL_USER}:${REDASH_POSTGRESQL_PASSWORD}@${REDASH_NAME}-postgresql/${REDASH_POSTGRESQL_DATABASE}
-      redash-domain-url: ${REDASH_DOMAIN_URL}
-      redash-cookie-secret: ${REDASH_COOKIE_SECRET}
+      REDASH_REDIS_URL: redis://:${REDASH_REDIS_PASSWORD}@${REDASH_NAME}-redis:6379/0
+      REDASH_DATABASE_URL: postgresql://${REDASH_POSTGRESQL_USER}:${REDASH_POSTGRESQL_PASSWORD}@${REDASH_NAME}-postgresql/${REDASH_POSTGRESQL_DATABASE}
+      REDASH_HOST: ${REDASH_DOMAIN_URL}
+      REDASH_COOKIE_SECRET: ${REDASH_COOKIE_SECRET}
 
   - apiVersion: v1
     kind: Secret
     metadata:
-      annotations:
-        template.openshift.io/expose-redash_mail_server: '{.data[''redash-mail-server'']}'
-        template.openshift.io/expose-redash_mail_port: '{.data[''redash-mail-port'']}'
-        template.openshift.io/expose-redash_mail_use_ssl: '{.data[''redash-mail-use-ssl'']}'
-        template.openshift.io/expose-redash_mail_use_tls: '{.data[''redash-mail-use-tls'']}'
-        template.openshift.io/expose-redash_mail_username: '{.data[''redash-mail-username'']}'
-        template.openshift.io/expose-redash_mail_password: '{.data[''redash-mail-password'']}'
-        template.openshift.io/expose-redash_mail_default_sender: '{.data[''redash-mail-default-sender'']}'
       name: ${REDASH_NAME}-mailer
     stringData:
-      redash-mail-server: ${REDASH_MAIL_SERVER}
-      redash-mail-port: ${REDASH_MAIL_PORT}
-      redash-mail-use-ssl: ${REDASH_MAIL_USE_SSL}
-      redash-mail-use-tls: ${REDASH_MAIL_USE_TLS}
-      redash-mail-username: ${REDASH_MAIL_USERNAME}
-      redash-mail-password: ${REDASH_MAIL_PASSWORD}
-      redash-mail-default-sender: ${REDASH_MAIL_DEFAULT_SENDER}
+      REDASH_MAIL_SERVER: ${REDASH_MAIL_SERVER}
+      REDASH_MAIL_PORT: ${REDASH_MAIL_PORT}
+      REDASH_MAIL_USE_SSL: ${REDASH_MAIL_USE_SSL}
+      REDASH_MAIL_USE_TLS: ${REDASH_MAIL_USE_TLS}
+      REDASH_MAIL_USERNAME: ${REDASH_MAIL_USERNAME}
+      REDASH_MAIL_PASSWORD: ${REDASH_MAIL_PASSWORD}
+      REDASH_MAIL_DEFAULT_SENDER: ${REDASH_MAIL_DEFAULT_SENDER}
 
   - apiVersion: v1
     kind: Service
     metadata:
-      annotations:
-        template.openshift.io/expose-postgresql_uri: postgres://${REDASH_POSTGRESQL_USER}:${REDASH_POSTGRESQL_PASSWORD}@{.spec.clusterIP}:{.spec.ports[?(.name=="postgresql")].port}
       name: ${REDASH_NAME}-postgresql
     spec:
       ports:
@@ -183,16 +162,10 @@ objects:
         targetPort: 5432
       selector:
         name: ${REDASH_NAME}-postgresql
-      sessionAffinity: None
-      type: ClusterIP
-    status:
-      loadBalancer: {}
 
   - apiVersion: v1
     kind: Service
     metadata:
-      annotations:
-        template.openshift.io/expose-redis_uri: redis://:${REDASH_REDIS_PASSWORD}@{.spec.clusterIP}:{.spec.ports[?(.name=="redis")].port}
       name: ${REDASH_NAME}-redis
     spec:
       ports:
@@ -202,10 +175,6 @@ objects:
         targetPort: 6379
       selector:
         name: ${REDASH_NAME}-redis
-      sessionAffinity: None
-      type: ClusterIP
-    status:
-      loadBalancer: {}
 
   - kind: Service
     apiVersion: v1
@@ -219,10 +188,6 @@ objects:
           targetPort: 5000
       selector:
         name: "${REDASH_NAME}-web"
-      sessionAffinity: None
-      type: ClusterIP
-    status:
-      loadBalancer: {}
 
   - kind: Route
     apiVersion: v1
@@ -254,63 +219,47 @@ objects:
             name: ${REDASH_NAME}-postgresql
         spec:
           containers:
-          - capabilities: {}
-            env:
+          - env:
             - name: POSTGRESQL_USER
               valueFrom:
                 secretKeyRef:
-                  key: database-user
-                  name: ${REDASH_NAME}-postgresql
+                  name: '${REDASH_NAME}-postgresql'
+                  key: POSTGRESQL_USER
             - name: POSTGRESQL_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  key: database-password
-                  name: ${REDASH_NAME}-postgresql
+                  name: '${REDASH_NAME}-postgresql'
+                  key: POSTGRESQL_PASSWORD
             - name: POSTGRESQL_DATABASE
               valueFrom:
                 secretKeyRef:
-                  key: database-name
-                  name: ${REDASH_NAME}-postgresql
-            image: 'telkomindonesia/alpine:postgresql-9.6'
+                  name: '${REDASH_NAME}-postgresql'
+                  key: POSTGRESQL_DATABASE
+            name: 'postgresql'
+            image: 'dimaskiddo/alpine:postgresql-10'
             imagePullPolicy: Always
-            livenessProbe:
-              initialDelaySeconds: 30
-              tcpSocket:
-                port: 5432
-              timeoutSeconds: 1
-            name: ${REDASH_NAME}-postgresql
             ports:
             - containerPort: 5432
               protocol: TCP
             readinessProbe:
-              exec:
-                command:
-                - /bin/sh
-                - -i
-                - -c
-                - psql -h 127.0.0.1 -U $POSTGRESQL_USER -q -d $POSTGRESQL_DATABASE -c
-                  'SELECT 1'
-              initialDelaySeconds: 5
+              failureThreshold: 3
+              initialDelaySeconds: 10
+              periodSeconds: 10
+              successThreshold: 1
+              tcpSocket:
+                port: 5432
               timeoutSeconds: 1
             resources:
               limits:
                 memory: ${REDASH_POSTGRESQL_MEMORY_LIMIT}
-            securityContext:
-              capabilities: {}
-              privileged: false
-            terminationMessagePath: /dev/termination-log
             volumeMounts:
             - name: ${REDASH_NAME}-postgresql-data
               mountPath: /var/lib/pgsql/data
-          dnsPolicy: ClusterFirst
-          restartPolicy: Always
           volumes:
           - name: ${REDASH_NAME}-postgresql-data
-            emptyDir:
-              medium: ""
+            emptyDir: {}
       triggers:
       - type: ConfigChange
-    status: {}
 
   - apiVersion: v1
     kind: DeploymentConfig
@@ -335,47 +284,33 @@ objects:
             - name: REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  key: database-password
-                  name: ${REDASH_NAME}-redis
-            image: 'telkomindonesia/alpine:redis-3.2'
+                  name: '${REDASH_NAME}-redis'
+                  key: REDIS_PASSWORD
+            name: 'redis'
+            image: 'dimaskiddo/alpine:redis-4.0'
             imagePullPolicy: Always
-            livenessProbe:
-              initialDelaySeconds: 30
-              tcpSocket:
-                port: 6379
-              timeoutSeconds: 1
-            name: ${REDASH_NAME}-redis
             ports:
             - containerPort: 6379
               protocol: TCP
             readinessProbe:
-              exec:
-                command:
-                - /bin/sh
-                - -i
-                - -c
-                - test "$(redis-cli -h 127.0.0.1 -a $REDIS_PASSWORD ping)" == "PONG"
+              failureThreshold: 3
               initialDelaySeconds: 5
+              periodSeconds: 10
+              successThreshold: 1
+              tcpSocket:
+                port: 6379
               timeoutSeconds: 1
             resources:
               limits:
                 memory: ${REDASH_REDIS_MEMORY_LIMIT}
-            securityContext:
-              capabilities: {}
-              privileged: false
-            terminationMessagePath: /dev/termination-log
             volumeMounts:
             - name: ${REDASH_NAME}-redis-data
               mountPath: /var/lib/redis/data
-          dnsPolicy: ClusterFirst
-          restartPolicy: Always
           volumes:
           - name: ${REDASH_NAME}-redis-data
-            emptyDir:
-              medium: ""
+            emptyDir: {}
       triggers:
       - type: ConfigChange
-    status: {}
 
   - kind: DeploymentConfig
     apiVersion: v1
@@ -398,84 +333,76 @@ objects:
         spec:
           containers:
             - env:
-                - name: 'PYTHONUNBUFFERED'
+                - name: PYTHONUNBUFFERED
                   value: '0'
-                - name: 'REDASH_LOG_LEVEL'
+                - name: REDASH_LOG_LEVEL
                   value: 'INFO'
-                - name: 'REDASH_HOST'
+                - name: REDASH_HOST
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-config
-                      key: redash-domain-url
-                - name: 'REDASH_REDIS_URL'
+                      name: '${REDASH_NAME}-config'
+                      key: REDASH_HOST
+                - name: REDASH_REDIS_URL
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-config
-                      key: redash-redis-url
-                - name: 'REDASH_DATABASE_URL'
+                      name: '${REDASH_NAME}-config'
+                      key: REDASH_REDIS_URL
+                - name: REDASH_DATABASE_URL
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-config
-                      key: redash-database-url
-                - name: 'REDASH_COOKIE_SECRET'
+                      name: '${REDASH_NAME}-config'
+                      key: REDASH_DATABASE_URL
+                - name: REDASH_COOKIE_SECRET
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-config
-                      key: redash-cookie-secret
-                - name: 'REDASH_MAIL_SERVER'
+                      name: '${REDASH_NAME}-config'
+                      key: REDASH_COOKIE_SECRET
+                - name: REDASH_MAIL_SERVER
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-mailer
-                      key: redash-mail-server
-                - name: 'REDASH_MAIL_PORT'
+                      name: '${REDASH_NAME}-mailer'
+                      key: REDASH_MAIL_SERVER
+                - name: REDASH_MAIL_PORT
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-mailer
-                      key: redash-mail-port
-                - name: 'REDASH_MAIL_USE_TLS'
+                      name: '${REDASH_NAME}-mailer'
+                      key: REDASH_MAIL_PORT
+                - name: REDASH_MAIL_USE_TLS
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-mailer
-                      key: redash-mail-use-tls
-                - name: 'REDASH_MAIL_USE_SSL'
+                      name: '${REDASH_NAME}-mailer'
+                      key: REDASH_MAIL_USE_TLS
+                - name: REDASH_MAIL_USE_SSL
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-mailer
-                      key: redash-mail-use-ssl
-                - name: 'REDASH_MAIL_USERNAME'
+                      name: '${REDASH_NAME}-mailer'
+                      key: REDASH_MAIL_USE_SSL
+                - name: REDASH_MAIL_USERNAME
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-mailer
-                      key: redash-mail-username
-                - name: 'REDASH_MAIL_PASSWORD'
+                      name: '${REDASH_NAME}-mailer'
+                      key: REDASH_MAIL_USERNAME
+                - name: REDASH_MAIL_PASSWORD
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-mailer
-                      key: redash-mail-password
-                - name: 'REDASH_MAIL_DEFAULT_SENDER'
+                      name: '${REDASH_NAME}-mailer'
+                      key: REDASH_MAIL_PASSWORD
+                - name: REDASH_MAIL_DEFAULT_SENDER
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-mailer
-                      key: redash-mail-default-sender
-                - name: 'REDASH_WEB_WORKERS'
+                      name: '${REDASH_NAME}-mailer'
+                      key: REDASH_MAIL_DEFAULT_SENDER
+                - name: REDASH_WEB_WORKERS
                   value: '2'
-              name: "${REDASH_NAME}-web"
-              image: 'telkomindonesia/debian:redash-7.0'
+              name: "redash-web"
+              image: 'dimaskiddo/debian:redash-7.0'
               imagePullPolicy: Always
               ports:
                 - containerPort: 5000
                   protocol: TCP
-              livenessProbe:
-                failureThreshold: 3
-                initialDelaySeconds: 30
-                periodSeconds: 10
-                successThreshold: 1
-                tcpSocket:
-                  port: 5000
-                timeoutSeconds: 1
               readinessProbe:
                 failureThreshold: 3
-                initialDelaySeconds: 30
+                initialDelaySeconds: 10
                 periodSeconds: 10
                 successThreshold: 1
                 tcpSocket:
@@ -484,7 +411,6 @@ objects:
               resources:
                 limits:
                   memory: ${REDASH_MEMORY_LIMIT}
-      test: false
       triggers:
         - type: ConfigChange
 
@@ -509,71 +435,71 @@ objects:
         spec:
           containers:
             - env:
-                - name: 'PYTHONUNBUFFERED'
+                - name: PYTHONUNBUFFERED
                   value: '0'
-                - name: 'REDASH_LOG_LEVEL'
+                - name: REDASH_LOG_LEVEL
                   value: 'INFO'
-                - name: 'REDASH_HOST'
+                - name: REDASH_HOST
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-config
-                      key: redash-domain-url
-                - name: 'REDASH_REDIS_URL'
+                      name: '${REDASH_NAME}-config'
+                      key: REDASH_HOST
+                - name: REDASH_REDIS_URL
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-config
-                      key: redash-redis-url
-                - name: 'REDASH_DATABASE_URL'
+                      name: '${REDASH_NAME}-config'
+                      key: REDASH_REDIS_URL
+                - name: REDASH_DATABASE_URL
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-config
-                      key: redash-database-url
-                - name: 'REDASH_COOKIE_SECRET'
+                      name: '${REDASH_NAME}-config'
+                      key: REDASH_DATABASE_URL
+                - name: REDASH_COOKIE_SECRET
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-config
-                      key: redash-cookie-secret
-                - name: 'REDASH_MAIL_SERVER'
+                      name: '${REDASH_NAME}-config'
+                      key: REDASH_COOKIE_SECRET
+                - name: REDASH_MAIL_SERVER
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-mailer
-                      key: redash-mail-server
-                - name: 'REDASH_MAIL_PORT'
+                      name: '${REDASH_NAME}-mailer'
+                      key: REDASH_MAIL_SERVER
+                - name: REDASH_MAIL_PORT
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-mailer
-                      key: redash-mail-port
-                - name: 'REDASH_MAIL_USE_TLS'
+                      name: '${REDASH_NAME}-mailer'
+                      key: REDASH_MAIL_PORT
+                - name: REDASH_MAIL_USE_TLS
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-mailer
-                      key: redash-mail-use-tls
-                - name: 'REDASH_MAIL_USE_SSL'
+                      name: '${REDASH_NAME}-mailer'
+                      key: REDASH_MAIL_USE_TLS
+                - name: REDASH_MAIL_USE_SSL
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-mailer
-                      key: redash-mail-use-ssl
-                - name: 'REDASH_MAIL_USERNAME'
+                      name: '${REDASH_NAME}-mailer'
+                      key: REDASH_MAIL_USE_SSL
+                - name: REDASH_MAIL_USERNAME
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-mailer
-                      key: redash-mail-username
-                - name: 'REDASH_MAIL_PASSWORD'
+                      name: '${REDASH_NAME}-mailer'
+                      key: REDASH_MAIL_USERNAME
+                - name: REDASH_MAIL_PASSWORD
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-mailer
-                      key: redash-mail-password
-                - name: 'REDASH_MAIL_DEFAULT_SENDER'
+                      name: '${REDASH_NAME}-mailer'
+                      key: REDASH_MAIL_PASSWORD
+                - name: REDASH_MAIL_DEFAULT_SENDER
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-mailer
-                      key: redash-mail-default-sender
-                - name: 'QUEUES'
+                      name: '${REDASH_NAME}-mailer'
+                      key: REDASH_MAIL_DEFAULT_SENDER
+                - name: QUEUES
                   value: 'celery'
-                - name: 'WORKERS_COUNT'
+                - name: WORKERS_COUNT
                   value: '1'
-              name: "${REDASH_NAME}-scheduler"
-              image: 'telkomindonesia/debian:redash-7.0'
+              name: "redash-scheduler"
+              image: 'dimaskiddo/debian:redash-7.0'
               imagePullPolicy: Always
               command: 
                 - "redash"
@@ -582,7 +508,6 @@ objects:
               resources:
                 limits:
                   memory: ${REDASH_MEMORY_LIMIT}
-      test: false
       triggers:
         - type: ConfigChange
 
@@ -607,71 +532,71 @@ objects:
         spec:
           containers:
             - env:
-                - name: 'PYTHONUNBUFFERED'
+                - name: PYTHONUNBUFFERED
                   value: '0'
-                - name: 'REDASH_LOG_LEVEL'
+                - name: REDASH_LOG_LEVEL
                   value: 'INFO'
-                - name: 'REDASH_HOST'
+                - name: REDASH_HOST
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-config
-                      key: redash-domain-url
-                - name: 'REDASH_REDIS_URL'
+                      name: '${REDASH_NAME}-config'
+                      key: REDASH_HOST
+                - name: REDASH_REDIS_URL
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-config
-                      key: redash-redis-url
-                - name: 'REDASH_DATABASE_URL'
+                      name: '${REDASH_NAME}-config'
+                      key: REDASH_REDIS_URL
+                - name: REDASH_DATABASE_URL
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-config
-                      key: redash-database-url
-                - name: 'REDASH_COOKIE_SECRET'
+                      name: '${REDASH_NAME}-config'
+                      key: REDASH_DATABASE_URL
+                - name: REDASH_COOKIE_SECRET
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-config
-                      key: redash-cookie-secret
-                - name: 'REDASH_MAIL_SERVER'
+                      name: '${REDASH_NAME}-config'
+                      key: REDASH_COOKIE_SECRET
+                - name: REDASH_MAIL_SERVER
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-mailer
-                      key: redash-mail-server
-                - name: 'REDASH_MAIL_PORT'
+                      name: '${REDASH_NAME}-mailer'
+                      key: REDASH_MAIL_SERVER
+                - name: REDASH_MAIL_PORT
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-mailer
-                      key: redash-mail-port
-                - name: 'REDASH_MAIL_USE_TLS'
+                      name: '${REDASH_NAME}-mailer'
+                      key: REDASH_MAIL_PORT
+                - name: REDASH_MAIL_USE_TLS
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-mailer
-                      key: redash-mail-use-tls
-                - name: 'REDASH_MAIL_USE_SSL'
+                      name: '${REDASH_NAME}-mailer'
+                      key: REDASH_MAIL_USE_TLS
+                - name: REDASH_MAIL_USE_SSL
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-mailer
-                      key: redash-mail-use-ssl
-                - name: 'REDASH_MAIL_USERNAME'
+                      name: '${REDASH_NAME}-mailer'
+                      key: REDASH_MAIL_USE_SSL
+                - name: REDASH_MAIL_USERNAME
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-mailer
-                      key: redash-mail-username
-                - name: 'REDASH_MAIL_PASSWORD'
+                      name: '${REDASH_NAME}-mailer'
+                      key: REDASH_MAIL_USERNAME
+                - name: REDASH_MAIL_PASSWORD
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-mailer
-                      key: redash-mail-password
-                - name: 'REDASH_MAIL_DEFAULT_SENDER'
+                      name: '${REDASH_NAME}-mailer'
+                      key: REDASH_MAIL_PASSWORD
+                - name: REDASH_MAIL_DEFAULT_SENDER
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-mailer
-                      key: redash-mail-default-sender
-                - name: 'QUEUES'
+                      name: '${REDASH_NAME}-mailer'
+                      key: REDASH_MAIL_DEFAULT_SENDER
+                - name: QUEUES
                   value: 'queries'
-                - name: 'WORKERS_COUNT'
+                - name: WORKERS_COUNT
                   value: '2'
-              name: "${REDASH_NAME}-adhoc"
-              image: 'telkomindonesia/debian:redash-7.0'
+              name: "redash-adhoc"
+              image: 'dimaskiddo/debian:redash-7.0'
               imagePullPolicy: Always
               command: 
                 - "redash"
@@ -680,7 +605,6 @@ objects:
               resources:
                 limits:
                   memory: ${REDASH_MEMORY_LIMIT}
-      test: false
       triggers:
         - type: ConfigChange
 
@@ -705,71 +629,71 @@ objects:
         spec:
           containers:
             - env:
-                - name: 'PYTHONUNBUFFERED'
+                - name: PYTHONUNBUFFERED
                   value: '0'
-                - name: 'REDASH_LOG_LEVEL'
+                - name: REDASH_LOG_LEVEL
                   value: 'INFO'
-                - name: 'REDASH_HOST'
+                - name: REDASH_HOST
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-config
-                      key: redash-domain-url
-                - name: 'REDASH_REDIS_URL'
+                      name: '${REDASH_NAME}-config'
+                      key: REDASH_HOST
+                - name: REDASH_REDIS_URL
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-config
-                      key: redash-redis-url
-                - name: 'REDASH_DATABASE_URL'
+                      name: '${REDASH_NAME}-config'
+                      key: REDASH_REDIS_URL
+                - name: REDASH_DATABASE_URL
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-config
-                      key: redash-database-url
-                - name: 'REDASH_COOKIE_SECRET'
+                      name: '${REDASH_NAME}-config'
+                      key: REDASH_DATABASE_URL
+                - name: REDASH_COOKIE_SECRET
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-config
-                      key: redash-cookie-secret
-                - name: 'REDASH_MAIL_SERVER'
+                      name: '${REDASH_NAME}-config'
+                      key: REDASH_COOKIE_SECRET
+                - name: REDASH_MAIL_SERVER
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-mailer
-                      key: redash-mail-server
-                - name: 'REDASH_MAIL_PORT'
+                      name: '${REDASH_NAME}-mailer'
+                      key: REDASH_MAIL_SERVER
+                - name: REDASH_MAIL_PORT
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-mailer
-                      key: redash-mail-port
-                - name: 'REDASH_MAIL_USE_TLS'
+                      name: '${REDASH_NAME}-mailer'
+                      key: REDASH_MAIL_PORT
+                - name: REDASH_MAIL_USE_TLS
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-mailer
-                      key: redash-mail-use-tls
-                - name: 'REDASH_MAIL_USE_SSL'
+                      name: '${REDASH_NAME}-mailer'
+                      key: REDASH_MAIL_USE_TLS
+                - name: REDASH_MAIL_USE_SSL
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-mailer
-                      key: redash-mail-use-ssl
-                - name: 'REDASH_MAIL_USERNAME'
+                      name: '${REDASH_NAME}-mailer'
+                      key: REDASH_MAIL_USE_SSL
+                - name: REDASH_MAIL_USERNAME
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-mailer
-                      key: redash-mail-username
-                - name: 'REDASH_MAIL_PASSWORD'
+                      name: '${REDASH_NAME}-mailer'
+                      key: REDASH_MAIL_USERNAME
+                - name: REDASH_MAIL_PASSWORD
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-mailer
-                      key: redash-mail-password
-                - name: 'REDASH_MAIL_DEFAULT_SENDER'
+                      name: '${REDASH_NAME}-mailer'
+                      key: REDASH_MAIL_PASSWORD
+                - name: REDASH_MAIL_DEFAULT_SENDER
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-mailer
-                      key: redash-mail-default-sender
-                - name: 'QUEUES'
+                      name: '${REDASH_NAME}-mailer'
+                      key: REDASH_MAIL_DEFAULT_SENDER
+                - name: QUEUES
                   value: 'scheduled_queries,schemas'
-                - name: 'WORKERS_COUNT'
+                - name: WORKERS_COUNT
                   value: '1'
-              name: "${REDASH_NAME}-worker"
-              image: 'telkomindonesia/debian:redash-7.0'
+              name: "redash-worker"
+              image: 'dimaskiddo/debian:redash-7.0'
               imagePullPolicy: Always
               command: 
                 - "redash"
@@ -778,7 +702,6 @@ objects:
               resources:
                 limits:
                   memory: ${REDASH_MEMORY_LIMIT}
-      test: false
       triggers:
         - type: ConfigChange
 
@@ -800,67 +723,67 @@ objects:
         spec:
           containers:
             - env:
-                - name: 'PYTHONUNBUFFERED'
+                - name: PYTHONUNBUFFERED
                   value: '0'
-                - name: 'REDASH_LOG_LEVEL'
+                - name: REDASH_LOG_LEVEL
                   value: 'INFO'
-                - name: 'REDASH_HOST'
+                - name: REDASH_HOST
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-config
-                      key: redash-domain-url
-                - name: 'REDASH_REDIS_URL'
+                      name: '${REDASH_NAME}-config'
+                      key: REDASH_HOST
+                - name: REDASH_REDIS_URL
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-config
-                      key: redash-redis-url
-                - name: 'REDASH_DATABASE_URL'
+                      name: '${REDASH_NAME}-config'
+                      key: REDASH_REDIS_URL
+                - name: REDASH_DATABASE_URL
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-config
-                      key: redash-database-url
-                - name: 'REDASH_COOKIE_SECRET'
+                      name: '${REDASH_NAME}-config'
+                      key: REDASH_DATABASE_URL
+                - name: REDASH_COOKIE_SECRET
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-config
-                      key: redash-cookie-secret
-                - name: 'REDASH_MAIL_SERVER'
+                      name: '${REDASH_NAME}-config'
+                      key: REDASH_COOKIE_SECRET
+                - name: REDASH_MAIL_SERVER
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-mailer
-                      key: redash-mail-server
-                - name: 'REDASH_MAIL_PORT'
+                      name: '${REDASH_NAME}-mailer'
+                      key: REDASH_MAIL_SERVER
+                - name: REDASH_MAIL_PORT
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-mailer
-                      key: redash-mail-port
-                - name: 'REDASH_MAIL_USE_TLS'
+                      name: '${REDASH_NAME}-mailer'
+                      key: REDASH_MAIL_PORT
+                - name: REDASH_MAIL_USE_TLS
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-mailer
-                      key: redash-mail-use-tls
-                - name: 'REDASH_MAIL_USE_SSL'
+                      name: '${REDASH_NAME}-mailer'
+                      key: REDASH_MAIL_USE_TLS
+                - name: REDASH_MAIL_USE_SSL
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-mailer
-                      key: redash-mail-use-ssl
-                - name: 'REDASH_MAIL_USERNAME'
+                      name: '${REDASH_NAME}-mailer'
+                      key: REDASH_MAIL_USE_SSL
+                - name: REDASH_MAIL_USERNAME
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-mailer
-                      key: redash-mail-username
-                - name: 'REDASH_MAIL_PASSWORD'
+                      name: '${REDASH_NAME}-mailer'
+                      key: REDASH_MAIL_USERNAME
+                - name: REDASH_MAIL_PASSWORD
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-mailer
-                      key: redash-mail-password
-                - name: 'REDASH_MAIL_DEFAULT_SENDER'
+                      name: '${REDASH_NAME}-mailer'
+                      key: REDASH_MAIL_PASSWORD
+                - name: REDASH_MAIL_DEFAULT_SENDER
                   valueFrom:
                     secretKeyRef:
-                      name: ${REDASH_NAME}-mailer
-                      key: redash-mail-default-sender
-              name: ${REDASH_NAME}-migrate
-              image: 'telkomindonesia/debian:redash-7.0'
+                      name: '${REDASH_NAME}-mailer'
+                      key: REDASH_MAIL_DEFAULT_SENDER
+              name: 'redash-migrate'
+              image: 'dimaskiddo/debian:redash-7.0'
               imagePullPolicy: Always
               command: 
                 - "redash"
