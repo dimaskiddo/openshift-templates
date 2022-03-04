@@ -1,10 +1,10 @@
 kind: Template
 apiVersion: v1
 metadata:
-  name: redash-ephemeral
+  name: redash-persistent
   annotations:
-    openshift.io/display-name: 'Redash Dashboard (Ephemeral)'
-    description: "Redash Dashboard. This template will create service without persistent storage."
+    openshift.io/display-name: 'Redash Dashboard'
+    description: "Redash Dashboard. You must have persistent volumes available in your cluster to use this template."
     tags: "dashboard,redash"
     iconClass: "icon-datavirt"
 
@@ -97,6 +97,12 @@ parameters:
     value: "512Mi"
     required: true
 
+  - name: REDASH_POSTGRESQL_VOLUME_CAPACITY
+    displayName: "Redash PostgreSQL Volume Capacity"
+    description: "Volume space available for Redash PostgreSQL data, e.g. 512Mi, 2Gi."
+    value: "25Gi"
+    required: true
+
   - name: REDASH_REDIS_PASSWORD
     displayName: "Redash Redis Password"
     description: "Password for Redis that will be used by Redash for accessing the database."
@@ -108,6 +114,12 @@ parameters:
     displayName: "Redash Redis Memory Limit"
     description: "Maximum amount of memory the Redash Redis can use."
     value: "512Mi"
+    required: true
+
+  - name: REDASH_REDIS_VOLUME_CAPACITY
+    displayName: "Redash Redis Volume Capacity"
+    description: "Volume space available for Redash Redis data, e.g. 512Mi, 2Gi."
+    value: "10Gi"
     required: true
 
 objects:
@@ -236,7 +248,7 @@ objects:
                   name: '${REDASH_NAME}-postgresql'
                   key: POSTGRESQL_DATABASE
             name: 'postgresql'
-            image: 'dimaskiddo/alpine:postgresql-10'
+            image: 'dimaskiddo/debian:postgresql-11'
             imagePullPolicy: Always
             ports:
             - containerPort: 5432
@@ -257,9 +269,21 @@ objects:
               mountPath: /var/lib/pgsql/data
           volumes:
           - name: ${REDASH_NAME}-postgresql-data
-            emptyDir: {}
+            persistentVolumeClaim:
+              claimName: ${REDASH_NAME}-postgresql
       triggers:
       - type: ConfigChange
+
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: ${REDASH_NAME}-postgresql
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: '${REDASH_POSTGRESQL_VOLUME_CAPACITY}'
 
   - apiVersion: v1
     kind: DeploymentConfig
@@ -287,7 +311,7 @@ objects:
                   name: '${REDASH_NAME}-redis'
                   key: REDIS_PASSWORD
             name: 'redis'
-            image: 'dimaskiddo/alpine:redis-4.0'
+            image: 'dimaskiddo/alpine:redis-6.2'
             imagePullPolicy: Always
             ports:
             - containerPort: 6379
@@ -308,9 +332,21 @@ objects:
               mountPath: /var/lib/redis/data
           volumes:
           - name: ${REDASH_NAME}-redis-data
-            emptyDir: {}
+            persistentVolumeClaim:
+              claimName: ${REDASH_NAME}-redis
       triggers:
       - type: ConfigChange
+
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: ${REDASH_NAME}-redis
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: '${REDASH_REDIS_VOLUME_CAPACITY}'
 
   - kind: DeploymentConfig
     apiVersion: v1
